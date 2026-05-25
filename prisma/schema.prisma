@@ -1,0 +1,139 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id_user Int @id @default(autoincrement())
+  nama String @db.VarChar(100)
+  npm String @unique @db.VarChar(8)
+  no_telp String @db.VarChar(15)
+  email String @unique @db.VarChar(100)
+  password String @db.VarChar(255)
+  alamat String @db.Text
+  jenis_kelamin JK
+  role Role @default(CUSTOMER)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  peminjaman Peminjaman[]
+  ratings Rating[]
+  favorit Favorit[]
+}
+
+model Kategori{
+  id_kategori Int @id @default(autoincrement())
+  nama_kategori String @db.VarChar(100)
+  deskripsi String @db.Text
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  buku Buku[]
+}
+
+model Buku{
+  id_buku Int @id @default(autoincrement())
+  id_kategori Int
+  judul String @db.VarChar(200)
+  penulis String @db.VarChar(100)
+  penerbit String @db.VarChar(100)
+  tahun_terbit Int
+  isbn String @unique @db.VarChar(30)
+  stok Int
+  cover_buku String @db.VarChar(255)
+  sinopsis String  @db.Text
+  rating_rata Decimal @db.Decimal(2,1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  kategori Kategori @relation(fields: [id_kategori], references: [id_kategori], onDelete: Cascade)
+
+  peminjaman Peminjaman[]
+  ratings Rating[]
+  favorit Favorit[]
+}
+
+model Peminjaman{
+  id_peminjaman Int @id @default(autoincrement())
+  id_user Int
+  id_buku Int
+  tanggal_pinjam DateTime @db.Date
+  tanggal_kembali DateTime @db.Date
+  tanggal_dikembalikan DateTime?
+  status StatusPeminjaman @default(direservasi)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  // Hubungan ke User dan Buku (Foreign Keys)
+  user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+  buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+  
+  denda Denda?
+}
+
+model Rating{
+  id_rating Int @id @default(autoincrement())
+  id_user Int
+  id_buku Int
+  rating Int 
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+  buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+}
+
+model Denda{
+  id_denda Int @id @default(autoincrement())
+  id_peminjaman Int @unique
+  jumlah_denda Decimal @db.Decimal(10,2)
+  hari_terlambat Int
+  status_bayar StatusBayar @default(belum_bayar)
+  tanggal_bayar DateTime?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  peminjaman Peminjaman @relation(fields: [id_peminjaman], references: [id_peminjaman], onDelete: Cascade)
+}
+
+model Favorit{
+  id_favorit Int @id @default(autoincrement())
+  id_user Int
+  id_buku Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+  buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+}
+
+enum StatusPeminjaman{
+  direservasi
+  dibatalkan
+  dipinjam
+  dikembalikan
+  terlambat
+}
+
+enum StatusBayar{
+  belum_bayar
+  sudah_bayar
+}
+
+enum Role{
+  CUSTOMER
+  ADMIN
+}
+
+enum JK{
+  L
+  P
+}
