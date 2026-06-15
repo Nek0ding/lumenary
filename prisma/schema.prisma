@@ -13,14 +13,14 @@ datasource db {
 }
 
 model User {
-  id_user Int @id @default(autoincrement())
-  nama String @db.VarChar(100)
+  id_user String @id
+  nama String? @db.VarChar(100)
   npm String @unique @db.VarChar(8)
-  no_telp String @db.VarChar(15)
+  no_telp String? @db.VarChar(15)
   email String @unique @db.VarChar(100)
   password String @db.VarChar(255)
-  alamat String @db.Text
-  jenis_kelamin JK
+  alamat String? @db.Text
+  jenis_kelamin JK?
   role Role @default(CUSTOMER)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -64,7 +64,7 @@ model Buku{
 
 model Peminjaman{
   id_peminjaman Int @id @default(autoincrement())
-  id_user Int
+  id_user String
   id_buku Int
   tanggal_pinjam DateTime @db.Date
   tanggal_kembali DateTime @db.Date
@@ -81,7 +81,7 @@ model Peminjaman{
 
 model Rating{
   id_rating Int @id @default(autoincrement())
-  id_user Int
+  id_user String
   id_buku Int
   rating Int 
   created_at DateTime @default(now())
@@ -96,6 +96,7 @@ model Denda{
   id_peminjaman Int @unique
   jumlah_denda Decimal @db.Decimal(10,2)
   hari_terlambat Int
+  keterangan_denda keteranganDenda @default(tidak_ada)
   status_bayar StatusBayar @default(belum_bayar)
   tanggal_bayar DateTime?
   created_at DateTime @default(now())
@@ -106,7 +107,7 @@ model Denda{
 
 model Favorit{
   id_favorit Int @id @default(autoincrement())
-  id_user Int
+  id_user String
   id_buku Int
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -136,4 +137,12 @@ enum Role{
 enum JK{
   L
   P
+}
+
+enum keteranganDenda{
+  tidak_ada
+  sobek
+  noda
+  rusak_total
+  kehilangan_buku
 }
