@@ -10,16 +10,19 @@ CREATE TYPE "Role" AS ENUM ('CUSTOMER', 'ADMIN');
 -- CreateEnum
 CREATE TYPE "JK" AS ENUM ('L', 'P');
 
+-- CreateEnum
+CREATE TYPE "keteranganDenda" AS ENUM ('tidak_ada', 'sobek', 'noda', 'rusak_total', 'kehilangan_buku');
+
 -- CreateTable
 CREATE TABLE "User" (
-    "id_user" SERIAL NOT NULL,
-    "nama" VARCHAR(100) NOT NULL,
+    "id_user" TEXT NOT NULL,
+    "nama" VARCHAR(100),
     "npm" VARCHAR(8) NOT NULL,
-    "no_telp" VARCHAR(15) NOT NULL,
+    "no_telp" VARCHAR(15),
     "email" VARCHAR(100) NOT NULL,
     "password" VARCHAR(255) NOT NULL,
-    "alamat" TEXT NOT NULL,
-    "jenis_kelamin" "JK" NOT NULL,
+    "alamat" TEXT,
+    "jenis_kelamin" "JK",
     "role" "Role" NOT NULL DEFAULT 'CUSTOMER',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -60,7 +63,7 @@ CREATE TABLE "Buku" (
 -- CreateTable
 CREATE TABLE "Peminjaman" (
     "id_peminjaman" SERIAL NOT NULL,
-    "id_user" INTEGER NOT NULL,
+    "id_user" TEXT NOT NULL,
     "id_buku" INTEGER NOT NULL,
     "tanggal_pinjam" DATE NOT NULL,
     "tanggal_kembali" DATE NOT NULL,
@@ -75,7 +78,7 @@ CREATE TABLE "Peminjaman" (
 -- CreateTable
 CREATE TABLE "Rating" (
     "id_rating" SERIAL NOT NULL,
-    "id_user" INTEGER NOT NULL,
+    "id_user" TEXT NOT NULL,
     "id_buku" INTEGER NOT NULL,
     "rating" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -90,6 +93,7 @@ CREATE TABLE "Denda" (
     "id_peminjaman" INTEGER NOT NULL,
     "jumlah_denda" DECIMAL(10,2) NOT NULL,
     "hari_terlambat" INTEGER NOT NULL,
+    "keterangan_denda" "keteranganDenda" NOT NULL DEFAULT 'tidak_ada',
     "status_bayar" "StatusBayar" NOT NULL DEFAULT 'belum_bayar',
     "tanggal_bayar" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -101,7 +105,7 @@ CREATE TABLE "Denda" (
 -- CreateTable
 CREATE TABLE "Favorit" (
     "id_favorit" SERIAL NOT NULL,
-    "id_user" INTEGER NOT NULL,
+    "id_user" TEXT NOT NULL,
     "id_buku" INTEGER NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
