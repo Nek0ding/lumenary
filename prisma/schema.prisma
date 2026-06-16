@@ -66,6 +66,7 @@ model Peminjaman{
   id_peminjaman Int @id @default(autoincrement())
   id_user String
   id_buku Int
+  kode_peminjaman String @unique
   tanggal_pinjam DateTime @db.Date
   tanggal_kembali DateTime @db.Date
   tanggal_dikembalikan DateTime?
