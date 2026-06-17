@@ -16,6 +16,131 @@ function generateKodePeminjaman(): string {
     return result;
 }
 
+export async function GET(request: Request) {
+    try {
+        // Validasi Token JWT Mahasiswa
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader?.startsWith('Bearer ')) {
+            return NextResponse.json({ success: false, message: "Unauthorized!" }, { status: 401 });
+        }
+
+        const token = authHeader.split(' ')[1];
+        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+        if (authError || !user) {
+            return NextResponse.json({ success: false, message: "Unauthorized! Expired Token" }, { status: 401 });
+        }
+
+        // Ambil id_user dari database berdasarkan email Supabase
+        const userProfile = await prisma.user.findUnique({
+            where: { email: user.email! },
+            select: { id_user: true }
+        });
+
+        if (!userProfile) {
+            return NextResponse.json({ success: false, message: "User profile not found!" }, { status: 404 });
+        }
+
+        const id_user = userProfile.id_user;
+
+        // LAZY EVALUATION: Cek dan bersihkan reservasi menggantung yang lewat 24 jam
+        const reservasiAktif = await prisma.peminjaman.findMany({
+            where: { id_user, status: 'direservasi' }
+        });
+
+        const waktuSekarang = new Date();
+
+        for (const res of reservasiAktif) {
+            const waktuReservasi = new Date(res.created_at); // Menggunakan created_at untuk umur reservasi
+            const selisihJam = (waktuSekarang.getTime() - waktuReservasi.getTime()) / (1000 * 60 * 60);
+
+            if (selisihJam > 24) {
+                await prisma.$transaction([
+                    prisma.peminjaman.update({
+                        where: { id_peminjaman: res.id_peminjaman },
+                        data: { status: 'dibatalkan' }
+                    }),
+                    prisma.buku.update({
+                        where: { id_buku: res.id_buku },
+                        data: { stok: { increment: 1 } }
+                    })
+                ]);
+            }
+        }
+
+        // Ambil semua data sirkulasi milik user ini
+        const seluruhPeminjaman = await prisma.peminjaman.findMany({
+            where: { id_user },
+            include: {
+                buku: {
+                    select: {
+                        judul: true,
+                        cover_buku: true,
+                        penulis: true
+                    }
+                },
+                denda: {
+                    select: {
+                        jumlah_denda: true,
+                        hari_terlambat: true,
+                        keterangan_denda: true,
+                        status_bayar: true
+                    }
+                }
+            },
+            orderBy: {
+                created_at: 'desc'
+            }
+        });
+
+        // Pisahkan data untuk Dashboard User
+        const peminjamanAktif = seluruhPeminjaman.filter(p => 
+            p.status === 'direservasi' || p.status === 'dipinjam' || p.status === 'terlambat'
+        ).map(p => ({
+            id_peminjaman: p.id_peminjaman,
+            kode_peminjaman: p.kode_peminjaman,
+            status: p.status,
+            tanggal_pinjam: p.tanggal_pinjam,
+            tanggal_kembali: p.tanggal_kembali,
+            buku: p.buku,
+            denda: p.denda ? {
+                ...p.denda,
+                jumlah_denda: Number(p.denda.jumlah_denda)
+            } : null
+        }));
+
+        const historyPeminjaman = seluruhPeminjaman.filter(p => 
+            p.status === 'dikembalikan' || p.status === 'dibatalkan'
+        ).map(p => ({
+            id_peminjaman: p.id_peminjaman,
+            kode_peminjaman: p.kode_peminjaman,
+            status: p.status,
+            tanggal_pinjam: p.tanggal_pinjam,
+            tanggal_kembali: p.tanggal_kembali,
+            tanggal_dikembalikan: p.tanggal_dikembalikan,
+            buku: p.buku,
+            denda: p.denda ? {
+                ...p.denda,
+                jumlah_denda: Number(p.denda.jumlah_denda)
+            } : null
+        }));
+
+        return NextResponse.json({
+            success: true,
+            message: "Berhasil mengambil data dashboard user",
+            data: {
+                aktif: peminjamanAktif,
+                history: historyPeminjaman
+            }
+        }, { status: 200 });
+
+    } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+            console.error("Error fetching user dashboard data:", error);
+        }
+        return NextResponse.json({ success: false, message: "Internal Server Error" }, { status: 500 });
+    }
+}
+
 export async function POST(request: Request) {
     try {
         const authHeader = request.headers.get('Authorization');
