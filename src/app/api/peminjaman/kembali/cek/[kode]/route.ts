@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export async function GET(request: Request, { params }: { params: { kode: string } }) {
@@ -94,6 +94,7 @@ export async function GET(request: Request, { params }: { params: { kode: string
                     denda_keterlambatan: {
                         hari_terlambat: reservationData.denda?.hari_terlambat || 0,
                         jumlah_denda: reservationData.denda?.jumlah_denda ? Number(reservationData.denda.jumlah_denda) : 0,
+                        status_bayar: reservationData.denda?.status_bayar || "belum_bayar"
                     }
                 },
             },

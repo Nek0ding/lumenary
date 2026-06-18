@@ -4,7 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
+  provider = "prisma-client-js"
   output   = "../src/generated/prisma"
 }
 
@@ -73,7 +73,7 @@ model Peminjaman{
   status StatusPeminjaman @default(direservasi)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-  // Hubungan ke User dan Buku (Foreign Keys)
+
   user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
   buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
   
