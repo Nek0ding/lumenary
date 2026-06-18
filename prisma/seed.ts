@@ -10,7 +10,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
     console.log("Proccessing seeding...");
 
-    // Seed kategori dulu, tangkap id-nya
+
     const fiksi = await prisma.kategori.upsert({
         where: { id_kategori: 1 },
         update: {},
@@ -19,7 +19,21 @@ async function main() {
             deskripsi: "Kategori untuk buku-buku fiksi yang mencakup berbagai genre seperti novel, cerita pendek, fantasi, dan lain-lain."
         },
     });
+    //JANGAN EDIT YANG DIATAS YAK
 
+    //EDIT YANG DIBAWAH INI BUAT BIKIN DATA KATEGORI YAK
+    const kategoriBuku = [
+        {
+            nama_kategori: "Fiksi",
+            deskripsi: "Kategori untuk buku-buku fiksi yang mencakup berbagai genre seperti novel, cerita pendek, fantasi, dan lain-lain."
+        },
+        {
+            nama_kategori: "Non Fiksi",
+            deskripsi: "deskripsiIni kategori non fiksi"
+        },
+    ]
+
+    // EDIT YANG DIBAWAH INI BUAT BIKIN DATA BUKU YAK
     const booksData = [
         {
             judul: "Project Hail Mary",
@@ -82,6 +96,8 @@ async function main() {
             kategori: { connect: { id_kategori: fiksi.id_kategori } }
         },
     ];
+
+    //DIBAWAH INI JANGAN DI EDIT YAK
 
     for (const book of booksData) {
         await prisma.buku.upsert({

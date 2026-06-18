@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
+import { StatusPeminjaman } from "@/generated/prisma";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,9 +17,14 @@ function generateKodePeminjaman(): string {
     return result;
 }
 
+// ✅ Helper Waktu WIB
+function getWIBTime(): Date {
+    return new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
+}
+
+// GET DATA PINJAMAN AKTIF DAN HISTORY PINJAMAN
 export async function GET(request: Request) {
     try {
-        // Validasi Token JWT Mahasiswa
         const authHeader = request.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
             return NextResponse.json({ success: false, message: "Unauthorized!" }, { status: 401 });
@@ -30,7 +36,6 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, message: "Unauthorized! Expired Token" }, { status: 401 });
         }
 
-        // Ambil id_user dari database berdasarkan email Supabase
         const userProfile = await prisma.user.findUnique({
             where: { email: user.email! },
             select: { id_user: true }
@@ -44,20 +49,20 @@ export async function GET(request: Request) {
 
         // LAZY EVALUATION: Cek dan bersihkan reservasi menggantung yang lewat 24 jam
         const reservasiAktif = await prisma.peminjaman.findMany({
-            where: { id_user, status: 'direservasi' }
+            where: { id_user, status: StatusPeminjaman.direservasi }
         });
 
-        const waktuSekarang = new Date();
+        const waktuSekarangWIB = getWIBTime();
 
         for (const res of reservasiAktif) {
-            const waktuReservasi = new Date(res.created_at); // Menggunakan created_at untuk umur reservasi
-            const selisihJam = (waktuSekarang.getTime() - waktuReservasi.getTime()) / (1000 * 60 * 60);
+            const waktuReservasi = new Date(res.created_at);
+            const selisihJam = (waktuSekarangWIB.getTime() - waktuReservasi.getTime()) / (1000 * 60 * 60);
 
             if (selisihJam > 24) {
                 await prisma.$transaction([
                     prisma.peminjaman.update({
                         where: { id_peminjaman: res.id_peminjaman },
-                        data: { status: 'dibatalkan' }
+                        data: { status: StatusPeminjaman.dibatalkan }
                     }),
                     prisma.buku.update({
                         where: { id_buku: res.id_buku },
@@ -72,169 +77,95 @@ export async function GET(request: Request) {
             where: { id_user },
             include: {
                 buku: {
-                    select: {
-                        judul: true,
-                        cover_buku: true,
-                        penulis: true
-                    }
+                    select: { judul: true, cover_buku: true, penulis: true }
                 },
                 denda: {
-                    select: {
-                        jumlah_denda: true,
-                        hari_terlambat: true,
-                        keterangan_denda: true,
-                        status_bayar: true
-                    }
+                    select: { jumlah_denda: true, hari_terlambat: true, keterangan_denda: true, status_bayar: true }
                 }
             },
-            orderBy: {
-                created_at: 'desc'
-            }
+            orderBy: { created_at: 'desc' }
         });
 
-        // Pisahkan data untuk Dashboard User
         const peminjamanAktif = seluruhPeminjaman.filter(p => 
-            p.status === 'direservasi' || p.status === 'dipinjam' || p.status === 'terlambat'
+            p.status === StatusPeminjaman.direservasi || 
+            p.status === StatusPeminjaman.dipinjam || 
+            p.status === StatusPeminjaman.terlambat
         ).map(p => ({
-            id_peminjaman: p.id_peminjaman,
-            kode_peminjaman: p.kode_peminjaman,
-            status: p.status,
-            tanggal_pinjam: p.tanggal_pinjam,
-            tanggal_kembali: p.tanggal_kembali,
-            buku: p.buku,
-            denda: p.denda ? {
-                ...p.denda,
-                jumlah_denda: Number(p.denda.jumlah_denda)
-            } : null
+            ...p,
+            denda: p.denda ? { ...p.denda, jumlah_denda: Number(p.denda.jumlah_denda) } : null
         }));
 
         const historyPeminjaman = seluruhPeminjaman.filter(p => 
-            p.status === 'dikembalikan' || p.status === 'dibatalkan'
+            p.status === StatusPeminjaman.dikembalikan || 
+            p.status === StatusPeminjaman.dibatalkan
         ).map(p => ({
-            id_peminjaman: p.id_peminjaman,
-            kode_peminjaman: p.kode_peminjaman,
-            status: p.status,
-            tanggal_pinjam: p.tanggal_pinjam,
-            tanggal_kembali: p.tanggal_kembali,
-            tanggal_dikembalikan: p.tanggal_dikembalikan,
-            buku: p.buku,
-            denda: p.denda ? {
-                ...p.denda,
-                jumlah_denda: Number(p.denda.jumlah_denda)
-            } : null
+            ...p,
+            denda: p.denda ? { ...p.denda, jumlah_denda: Number(p.denda.jumlah_denda) } : null
         }));
 
         return NextResponse.json({
             success: true,
             message: "Berhasil mengambil data dashboard user",
-            data: {
-                aktif: peminjamanAktif,
-                history: historyPeminjaman
-            }
+            data: { aktif: peminjamanAktif, history: historyPeminjaman }
         }, { status: 200 });
 
     } catch (error) {
-        if (process.env.NODE_ENV === 'development') {
-            console.error("Error fetching user dashboard data:", error);
-        }
+        if (process.env.NODE_ENV === 'development') console.error("Error fetching user dashboard data:", error);
         return NextResponse.json({ success: false, message: "Internal Server Error" }, { status: 500 });
     }
 }
 
+// POST DATA BUAT RESERVASI PINJAMAN
 export async function POST(request: Request) {
     try {
         const authHeader = request.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json(
-                { success: false, message: "Unauthorized!" },
-                { status: 401 }
-            );
+            return NextResponse.json({ success: false, message: "Unauthorized!" }, { status: 401 });
         }
 
         const token = authHeader.split(' ')[1];
         const { data: { user }, error: authError } = await supabase.auth.getUser(token);
         if (authError || !user) {
-            return NextResponse.json(
-                { success: false, message: "Unauthorized! Expired" },
-                { status: 401 }
-            );
+            return NextResponse.json({ success: false, message: "Unauthorized! Expired" }, { status: 401 });
         }
 
         const body = await request.json();
         const { id_buku } = body;
 
         if (!id_buku || typeof id_buku !== 'number' || !Number.isInteger(id_buku) || id_buku <= 0) {
-            return NextResponse.json(
-                { success: false, message: "ID Buku is required and must be a positive integer!" },
-                { status: 400 }
-            );
+            return NextResponse.json({ success: false, message: "ID Buku is required and must be a positive integer!" }, { status: 400 });
         }
 
         const userProfile = await prisma.user.findUnique({
             where: { email: user.email! },
-            select: {
-                id_user: true,
-                nama: true,
-                no_telp: true,
-                alamat: true,
-                jenis_kelamin: true,
-            }
+            select: { id_user: true, nama: true, no_telp: true, alamat: true, jenis_kelamin: true, }
         });
 
-        if (!userProfile) {
-            return NextResponse.json(
-                { success: false, message: "User profile not found!" },
-                { status: 404 }
-            );
-        }
-
+        if (!userProfile) return NextResponse.json({ success: false, message: "User profile not found!" }, { status: 404 });
+        
         if (!userProfile.nama || !userProfile.no_telp || !userProfile.alamat || !userProfile.jenis_kelamin) {
-            return NextResponse.json(
-                { success: false, code: "INCOMPLETE_PROFILE", message: "Please complete your profile before borrowing a book!" },
-                { status: 403 }
-            );
+            return NextResponse.json({ success: false, code: "INCOMPLETE_PROFILE", message: "Please complete your profile before borrowing a book!" }, { status: 403 });
         }
 
         const [buku, pinjamanAktif] = await Promise.all([
-            prisma.buku.findUnique({
-                where: { id_buku },
-                select: { id_buku: true, stok: true },
-            }),
+            prisma.buku.findUnique({ where: { id_buku }, select: { id_buku: true, stok: true } }),
             prisma.peminjaman.findMany({
                 where: {
                     id_user: userProfile.id_user,
-                    status: {
-                        in: ['dipinjam', 'direservasi']
-                    }
+                    status: { in: [StatusPeminjaman.dipinjam, StatusPeminjaman.direservasi] }
                 },
                 select: { id_buku: true },
             }),
         ]);
 
-        if (!buku || buku.stok <= 0) {
-            return NextResponse.json(
-                { success: false, message: "Book is unavailable or the stock is empty" },
-                { status: 400 }
-            );
-        }
+        if (!buku || buku.stok <= 0) return NextResponse.json({ success: false, message: "Book is unavailable or the stock is empty" }, { status: 400 });
+        if (pinjamanAktif.some(p => p.id_buku === id_buku)) return NextResponse.json({ success: false, message: "You already borrowed this book!" }, { status: 400 });
+        if (pinjamanAktif.length >= 3) return NextResponse.json({ success: false, message: "You have reached the maximum number of active loans (3)." }, { status: 400 });
 
-        if (pinjamanAktif.some(p => p.id_buku === id_buku)) {
-            return NextResponse.json(
-                { success: false, message: "You already borrowed this book!" },
-                { status: 400 }
-            );
-        }
-
-        if (pinjamanAktif.length >= 3) {
-            return NextResponse.json(
-                { success: false, message: "You have reached the maximum number of active loans (3). Please return a book before borrowing another one." },
-                { status: 400 }
-            );
-        }
-
-        const tanggalPinjam = new Date();
-        const tanggalKembali = new Date();
-        tanggalKembali.setDate(tanggalPinjam.getDate() + 7);
+        // ✅ Pencatatan Tanggal Basis WIB
+        const tanggalPinjamWIB = getWIBTime();
+        const tanggalKembaliWIB = new Date(tanggalPinjamWIB);
+        tanggalKembaliWIB.setDate(tanggalPinjamWIB.getDate() + 7);
 
         const kodePeminjaman = generateKodePeminjaman();
         const result = await prisma.$transaction([
@@ -247,35 +178,18 @@ export async function POST(request: Request) {
                     id_user: userProfile.id_user,
                     id_buku,
                     kode_peminjaman: kodePeminjaman,
-                    tanggal_pinjam: tanggalPinjam,
-                    tanggal_kembali: tanggalKembali,
-                    status: 'direservasi',
+                    tanggal_pinjam: tanggalPinjamWIB,
+                    tanggal_kembali: tanggalKembaliWIB,
+                    status: StatusPeminjaman.direservasi,
                 },
             }),
         ]);
 
-        return NextResponse.json(
-            { success: true, message: "Book borrowed successfully!", data: result[1] },
-            { status: 201 }
-        );
+        return NextResponse.json({ success: true, message: "Book borrowed successfully!", data: result[1] }, { status: 201 });
 
     } catch (error: any) {
-        if (process.env.NODE_ENV === 'development') {
-            console.error('Error on peminjaman API', error);
-        } else {
-            console.error('Error on peminjaman API', error.code ?? 'Unknown error');
-        }
-
-        if (error.code === 'P2025') {
-            return NextResponse.json(
-                { success: false, message: "Book is unavailable or the stock has just run out!" },
-                { status: 400 }
-            );
-        }
-
-        return NextResponse.json(
-            { success: false, message: "An error occurred while processing your request." },
-            { status: 500 }
-        );
+        if (process.env.NODE_ENV === 'development') console.error('Error on peminjaman API', error);
+        if (error.code === 'P2025') return NextResponse.json({ success: false, message: "Book is unavailable or the stock has just run out!" }, { status: 400 });
+        return NextResponse.json({ success: false, message: "An error occurred while processing your request." }, { status: 500 });
     }
 }
