@@ -416,7 +416,7 @@ export default function LandingPage() {
           </div>
 
           {/* ================= FOOTER ================= */}
-          <footer className="w-full pt-8 pb-4 flex flex-col gap-[24px] md:gap-[32px] border-t border-zinc-100 text-zinc-500 font-medium">
+          <footer className="w-full pt-8 pb-4 flex flex-col gap-[24px] md:gap-[32px] md:px-[40px] border-t border-zinc-100 text-zinc-500 font-medium">
             <div className="flex flex-col lg:flex-row justify-between items-start gap-8 lg:gap-[32px]">
               <div className="flex flex-col gap-[12px] max-w-[460px]">
                 <div className="flex items-center gap-3">
