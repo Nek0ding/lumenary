@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, BookOpen, Star, Search } from 'lucide-react';
+import { X, Star, Search } from 'lucide-react';
 import Link from 'next/link';
 
 const AccordionItem = ({ question, answer }) => {
@@ -25,15 +25,16 @@ const AccordionItem = ({ question, answer }) => {
 export default function LandingPage() {
   const router = useRouter();
 
-  // State Bawaan
   const [trendingBooks, setTrendingBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   
-  // State Baru untuk Search & Modal
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBook, setSelectedBook] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // State baru untuk mengatur buka/tutup sinopsis panjang
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const faqs = [
     { q: "What is Lumenary and how does it work?", a: "Lumenary is a digital library system designed to help Gunadarma students book books and study slots online easily." },
@@ -70,12 +71,16 @@ export default function LandingPage() {
 
   const openBookDetail = (book) => {
     setSelectedBook(book);
+    setIsExpanded(false); // Reset kondisi sinopsis saat modal baru dibuka
     setIsModalOpen(true);
   };
 
   const closeBookDetail = () => {
     setIsModalOpen(false);
-    setTimeout(() => setSelectedBook(null), 300);
+    setTimeout(() => {
+      setSelectedBook(null);
+      setIsExpanded(false);
+    }, 300);
   };
 
   const handleReserve = () => {
@@ -89,103 +94,152 @@ export default function LandingPage() {
     }
   };
 
+  // Fungsi pembantu untuk memotong sinopsis
+  const renderSynopsis = () => {
+    if (!selectedBook) return null;
+    
+    const text = selectedBook.sinopsis || "Sinopsis tidak tersedia untuk buku ini.";
+    const maxLength = 150; // Batas karakter sebelum dipotong
+
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    if (isExpanded) {
+      return (
+        <>
+          {text}
+          <span 
+            onClick={() => setIsExpanded(false)} 
+            style={{ cursor: 'pointer', fontWeight: '800', marginLeft: '6px', color: '#6B21A8' }}
+          >
+            (show less)
+          </span>
+        </>
+      );
+    }
+
+    return (
+      <>
+        {text.substring(0, maxLength)}
+        <span 
+          onClick={() => setIsExpanded(true)} 
+          style={{ cursor: 'pointer', fontWeight: '800', color: '#111' }}
+        >
+          ...read more
+        </span>
+      </>
+    );
+  };
+
   return (
     <>
-      {/* ================= MODAL POP-UP DETAIL BUKU (KUNCI MUTLAK DENGAN INLINE STYLE) ================= */}
+      {/* ================= MODAL POP-UP DETAIL BUKU ================= */}
       {isModalOpen && selectedBook && (
         <div 
           style={{ 
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-            backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', 
+            backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', 
             zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', 
-            padding: '1rem' 
+            padding: '16px' 
           }}
         >
           <div 
-            className="bg-white flex flex-col md:flex-row relative"
+            className="flex flex-col md:flex-row relative"
             style={{ 
-              width: '100%', maxWidth: '900px', maxHeight: '90vh', 
-              borderRadius: '24px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)'
+              backgroundColor: '#F8F5FF', 
+              width: '100%', maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto',
+              borderRadius: '24px', padding: '32px', gap: '32px',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)'
             }}
           >
             {/* Tombol Close */}
             <button 
               onClick={closeBookDetail} 
-              style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10, padding: '8px', backgroundColor: '#f4f4f5', borderRadius: '50%', cursor: 'pointer', border: 'none' }}
+              style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 10, background: 'none', cursor: 'pointer', border: 'none' }}
             >
-              <X color="#52525b" size={24} />
+              <X color="#333" size={28} />
             </button>
 
-            {/* Gambar Cover (Kiri) */}
-            <div style={{ backgroundColor: '#f4f4f5', padding: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: '1 1 40%' }}>
+            {/* ====== KIRI: COVER & ISBN ====== */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '280px', flexShrink: 0, margin: '0 auto' }}>
               <img 
-                src={selectedBook.cover_buku || "https://placehold.co/230x320?text=No+Cover"} 
+                src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} 
                 alt={selectedBook.judul} 
-                style={{ width: '100%', maxWidth: '220px', aspectRatio: '3/4', objectFit: 'cover', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', borderRadius: '16px', boxShadow: '0 12px 24px rgba(0,0,0,0.15)' }}
               />
+              
+              <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star key={star} size={28} fill="#FFD700" color="#FFD700" />
+                ))}
+              </div>
+              
+              <p style={{ fontSize: '16px', fontWeight: '600', color: '#333', marginTop: '16px', textAlign: 'center' }}>
+                ISBN : {selectedBook.isbn || '978-0-59-313520-4'}
+              </p>
             </div>
 
-            {/* Informasi Buku (Kanan) */}
-            <div style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px', flex: '1 1 60%', overflowY: 'auto' }}>
+            {/* ====== KANAN: DETAIL INFO ====== */}
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingTop: '8px' }}>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ padding: '4px 12px', backgroundColor: '#e0e7ff', color: '#3037B4', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', borderRadius: '999px' }}>
-                    {selectedBook.kategori?.nama_kategori || 'Trending'}
-                  </span>
-                  {selectedBook.rating_rata && (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '14px', fontWeight: 'bold', color: '#f59e0b' }}>
-                      <Star size={16} fill="#f59e0b" color="#f59e0b" /> {selectedBook.rating_rata}
-                    </span>
-                  )}
-                </div>
-                <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#000', margin: 0, lineHeight: '1.2' }}>{selectedBook.judul}</h2>
-                <p style={{ fontSize: '16px', fontWeight: '500', color: '#71717a', margin: 0 }}>{selectedBook.penulis}</p>
+              <h2 style={{ fontSize: '32px', fontWeight: '800', color: '#111', margin: '0 0 4px 0', lineHeight: 1.2 }}>
+                {selectedBook.judul}
+              </h2>
+              <p style={{ fontSize: '20px', fontWeight: '500', color: '#555', margin: '0 0 16px 0' }}>
+                {selectedBook.penulis}
+              </p>
+
+              {/* Status Row */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: selectedBook.stok > 0 ? '#00A651' : '#E11D48' }} />
+                <span style={{ fontSize: '15px', fontWeight: '700', color: selectedBook.stok > 0 ? '#00A651' : '#E11D48' }}>
+                  {selectedBook.stok > 0 ? 'Available for Loan' : 'Out of Stock'}
+                </span>
+                <span style={{ color: '#A1A1AA', margin: '0 4px' }}>|</span>
+                <span style={{ fontSize: '15px', color: '#111', fontWeight: '500' }}>
+                  Stock leftovers: <b style={{ fontWeight: '800' }}>{selectedBook.stok > 0 ? `${selectedBook.stok} Books` : '0 Books'}</b>
+                </span>
               </div>
 
-              <div>
-                <h3 style={{ fontSize: '12px', fontWeight: 'bold', color: '#000', textTransform: 'uppercase', marginBottom: '8px' }}>Synopsis</h3>
-                <div style={{ maxHeight: '120px', overflowY: 'auto', paddingRight: '8px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: '500', color: '#52525b', lineHeight: '1.6', margin: 0 }}>
-                    {selectedBook.sinopsis || "Sinopsis tidak tersedia untuk buku ini."}
-                  </p>
-                </div>
+              {/* Tags/Kategori */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+                <span style={{ backgroundColor: '#EADFFF', color: '#6B21A8', padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold' }}>
+                  {selectedBook.kategori?.nama_kategori || 'Sci-Fi'}
+                </span>
+                <span style={{ backgroundColor: '#EADFFF', color: '#6B21A8', padding: '6px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold' }}>
+                  Fiction
+                </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', borderTop: '1px solid #f4f4f5', borderBottom: '1px solid #f4f4f5', padding: '16px 0', fontSize: '14px' }}>
-                <div>
-                  <span style={{ display: 'block', color: '#a1a1aa', fontWeight: '500' }}>Penerbit</span>
-                  <span style={{ fontWeight: 'bold', color: '#000' }}>{selectedBook.penerbit || '-'}</span>
-                </div>
-                <div>
-                  <span style={{ display: 'block', color: '#a1a1aa', fontWeight: '500' }}>Tahun</span>
-                  <span style={{ fontWeight: 'bold', color: '#000' }}>{selectedBook.tahun_terbit || '-'}</span>
-                </div>
-                <div>
-                  <span style={{ display: 'block', color: '#a1a1aa', fontWeight: '500' }}>ISBN</span>
-                  <span style={{ fontWeight: 'bold', color: '#000' }}>{selectedBook.isbn || '-'}</span>
-                </div>
-                <div>
-                  <span style={{ display: 'block', color: '#a1a1aa', fontWeight: '500' }}>Stok</span>
-                  <span style={{ fontWeight: 'bold', color: selectedBook.stok > 0 ? '#059669' : '#e11d48' }}>
-                    {selectedBook.stok > 0 ? `${selectedBook.stok} Tersedia` : 'Habis / Dipinjam'}
-                  </span>
-                </div>
+              {/* Sinopsis Dinamis */}
+              <h3 style={{ fontSize: '20px', fontWeight: '800', color: '#111', margin: '0 0 12px 0' }}>Sinoption</h3>
+              <p style={{ fontSize: '16px', color: '#222', lineHeight: '1.6', margin: '0 0 24px 0', fontWeight: '500', whiteSpace: 'pre-wrap' }}>
+                {renderSynopsis()}
+              </p>
+
+              {/* Buttons Container */}
+              <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                
+                {/* Tombol Booking */}
+                <button 
+                  onClick={handleReserve}
+                  disabled={selectedBook.stok <= 0}
+                  style={{ 
+                    width: '100%', padding: '16px', borderRadius: '12px', fontSize: '18px', fontWeight: '800', border: 'none', 
+                    background: 'linear-gradient(90deg, #C3CFF7 0%, #101464 100%)', color: '#FFF',
+                    cursor: selectedBook.stok > 0 ? 'pointer' : 'not-allowed', opacity: selectedBook.stok > 0 ? 1 : 0.6,
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  Booking Book
+                </button>
+
+                <p style={{ textAlign: 'center', fontSize: '14px', color: '#555', margin: '4px 0 0 0', fontWeight: '500' }}>
+                  *Maximum loan period is 7 working days
+                </p>
               </div>
 
-              <button 
-                onClick={handleReserve}
-                disabled={selectedBook.stok <= 0}
-                style={{ 
-                  width: '100%', padding: '16px', borderRadius: '12px', color: '#fff', fontSize: '16px', fontWeight: 'bold', border: 'none', cursor: selectedBook.stok > 0 ? 'pointer' : 'not-allowed',
-                  background: 'linear-gradient(92.68deg, #8EA1E6 0%, #3037B4 50%, #101464 100%)',
-                  opacity: selectedBook.stok > 0 ? 1 : 0.5,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: 'auto'
-                }}
-              >
-                <BookOpen size={20} />
-                {selectedBook.stok > 0 ? 'Reserve Book' : 'Out of Stock'}
-              </button>
             </div>
           </div>
         </div>
@@ -195,7 +249,7 @@ export default function LandingPage() {
       <div className="w-full bg-white min-h-screen pt-4 pb-10 px-4 md:px-[80px] font-['Plus_Jakarta_Sans',sans-serif] text-[#020617] antialiased flex justify-center relative">
         <div className={`w-full max-w-[1200px] flex flex-col gap-10 md:gap-[40px] ${isModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
 
-          {/* HERO BOX (FLEXIBLE & RESPONSIVE) */}
+          {/* HERO BOX */}
           <div
             className="relative w-full min-h-[680px] rounded-[40px] overflow-hidden shadow-sm flex flex-col justify-between p-10 md:p-[40px]"
             style={{ background: 'linear-gradient(102.43deg, #FFFEF7 0%, #E2C6FF 83.81%)' }}
