@@ -10,10 +10,38 @@ export default function LoginPage() {
     const [npm, setNpm] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSignInSubmit = (e: React.FormEvent) => {
+    const handleSignInSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        alert('Fungsi login siap disambungkan ke API!');
+        setError('');
+
+        try {
+            // Memanggil API login yang sudah kamu buat
+            const res = await fetch('/api/auth/login', { // Sesuaikan path jika beda
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ npm, password }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                // Simpan token dan data user ke localStorage
+                localStorage.setItem('lumenary_token', data.token);
+                localStorage.setItem('lumenary_user', JSON.stringify(data.user));
+
+                // Redirect ke dashboard
+                router.push('/dashboard');
+            } else {
+                setError(data.message || 'Login gagal, periksa kembali kredensial Anda.');
+            }
+        } catch (error) {
+            console.error('Login error:', error);
+            setError('Terjadi kesalahan pada server. Coba lagi nanti.');
+        }
     };
     const landingPage = () => {
         router.push('/')
@@ -89,6 +117,12 @@ export default function LoginPage() {
 
                             {/* Input NPM */}
                             <div className="flex flex-col gap-2">
+                                {/* Pesan Error akan muncul di sini jika login gagal */}
+                                {error && (
+                                    <p className="text-red-500 text-[13px] md:text-[14px] font-semibold tracking-wide transition-all animate-in fade-in duration-200">
+                                        *{error}
+                                    </p>
+                                )}
                                 <label className="text-[16px] xl:text-[20px] font-bold text-[#000000]">Student ID Number (NPM)</label>
                                 <input
                                     type="text"

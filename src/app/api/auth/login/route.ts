@@ -62,6 +62,7 @@ export async function POST(request: Request) {
                     npm: userPrisma.npm,
                     email: data.user?.email,
                     role: userPrisma.role,
+                    nama: userPrisma.nama,
                 }
             },
             {status: 200}

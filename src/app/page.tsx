@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Star, Search } from 'lucide-react';
 import Link from 'next/link';
+import footer from '@/components/footer';
 
 const AccordionItem = ({ question, answer }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -103,7 +104,7 @@ export default function LandingPage() {
     if (!token) {
       router.push('/login');
     } else {
-      alert("Sudah login, tinggal redirect ke dashboard");
+      router.push('/dashboard');
     }
   };
 
