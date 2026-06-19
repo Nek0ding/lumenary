@@ -4,5 +4,9 @@
       "path": "/api/cron/daily-check",
       "schedule": "0 17 * * *"
     }
-  ]
+  ],
+
+  "github": {
+    "silent": true
+  }
 }
