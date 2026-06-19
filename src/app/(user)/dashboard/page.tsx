@@ -218,7 +218,7 @@ export default function DashboardPage() {
                                     {selectedBook.stok > 0 ? 'Available for Loan' : 'Out of Stock'}
                                 </span>
                                 <span className="text-zinc-300 mx-1 hidden sm:block">|</span>
-                                <span className="text-[13px] md:text-[15px] font-medium w-full sm:w-auto">Stock leftovers: <b className="font-extrabold">{selectedBook.stok} Books</b></span>
+                                <span className="text-[13px] md:text-[15px] text-[#111] font-medium w-full sm:w-auto">Stock leftovers: <b className="font-extrabold">{selectedBook.stok} Books</b></span>
                             </div>
 
                             <span className={`text-[12px] md:text-[14px] font-bold px-3 py-1.5 md:px-4 md:py-2 rounded-lg w-fit mb-5 ${getCategoryBadge(selectedBook.kategori?.nama_kategori || '')}`}>
