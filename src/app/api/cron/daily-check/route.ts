@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { keteranganDenda, StatusBayar, StatusPeminjaman } from "@/generated/prisma";
+import { keteranganDenda, StatusBayar, StatusPeminjaman } from "@prisma/client";
 
 const DENDA_PER_HARI = 1000;
 
