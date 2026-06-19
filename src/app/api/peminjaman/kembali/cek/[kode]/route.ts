@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from '@supabase/supabase-js';
+import { StatusBayar, StatusPeminjaman } from "@/generated/prisma";
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(request: Request, { params }: { params: { kode: string } }) {
+// ✅ FIX: Mengubah tipe params menjadi Promise<{ kode: string }>
+export async function GET(request: Request, { params }: { params: Promise<{ kode: string }> }) {
     try {
+        // ✅ FIX: Melakukan await pada params sebelum destructuring mengambil nilai kode
+        const { kode } = await params;
+
         // 1. Validasi Token JWT Admin
         const authHeader = request.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
@@ -30,8 +35,6 @@ export async function GET(request: Request, { params }: { params: { kode: string
         if (!adminProfile || adminProfile.role !== 'ADMIN') {
             return NextResponse.json({ success: false, message: "Unauthorized!" }, { status: 403 });
         }
-
-        const { kode } = params;
 
         // 3. Ambil Data Transaksi (Mendukung status 'dipinjam' maupun 'terlambat')
         const reservationData = await prisma.peminjaman.findUnique({

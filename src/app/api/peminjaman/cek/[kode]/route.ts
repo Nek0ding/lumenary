@@ -8,8 +8,12 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(request: Request, { params }: { params: { kode: string } }) {
+// ✅ FIX: Ubah tipe params menjadi Promise<{ kode: string }>
+export async function GET(request: Request, { params }: { params: Promise<{ kode: string }> }) {
     try {
+        // ✅ FIX: Await params sebelum digunakan
+        const { kode } = await params;
+
         // 1. Validasi Token JWT Admin
         const authHeader = request.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
@@ -31,8 +35,6 @@ export async function GET(request: Request, { params }: { params: { kode: string
         if (!adminProfile || adminProfile.role !== 'ADMIN') {
             return NextResponse.json({ success: false, message: "Unauthorized!" }, { status: 403 });
         }
-
-        const { kode } = params;
 
         // 3. Ambil Data Transaksi Lengkap dengan Struktur Relasi Denda
         const reservationData = await prisma.peminjaman.findUnique({
