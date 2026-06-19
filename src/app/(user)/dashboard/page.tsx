@@ -106,7 +106,7 @@ export default function DashboardPage() {
             cover_buku: item.cover,
             stok: item.stok ?? 5, // Fallback stok jika belum terdefinisi penuh di API dashboard
             isbn: item.isbn || 'ISBN Not Found',
-            sinopsis: item.sinopsis || 'Sinopsys Ss Not Available',
+            sinopsis: item.sinopsis || 'Synopsis Not Available',
             rating_rata: item.rating,
             kategori: { nama_kategori: item.category || 'General' }
         });
@@ -305,7 +305,7 @@ export default function DashboardPage() {
                             </div>
 
                             {/* Sinopsis Dinamis */}
-                            <h3 className="text-[18px] md:text-[20px] font-extrabold text-[#111] mb-2 md:mb-3">Sinopsys</h3>
+                            <h3 className="text-[18px] md:text-[20px] font-extrabold text-[#111] mb-2 md:mb-3">Synopsis</h3>
                             <p className="text-[14px] md:text-[16px] text-[#222] leading-[1.6] mb-5 md:mb-6 font-medium whitespace-pre-wrap">
                                 {renderSynopsis()}
                             </p>
@@ -425,7 +425,7 @@ export default function DashboardPage() {
                     <h2 className="text-[20px] font-bold text-black">Current Reading</h2>
                     {currentReading.length === 0 ? (
                         <p className="text-zinc-500 text-[14px] bg-white rounded-2xl p-6 text-center border border-zinc-100 shadow-sm">
-                            Anda tidak sedang meminjam buku saat ini.
+                            You are not borrowing any book right now..
                         </p>
                     ) : (
                         <div className="flex flex-col gap-4">

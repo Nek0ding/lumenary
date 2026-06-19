@@ -4,9 +4,20 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { X, Star, Search } from 'lucide-react';
 import Link from 'next/link';
-import footer from '@/components/footer';
 
-const AccordionItem = ({ question, answer }) => {
+type Book = {
+  id_buku: string;
+  judul: string;
+  penulis: string;
+  sinopsis?: string;
+  cover_buku?: string;
+  isbn?: string;
+  stok: number;
+  rating_rata?: number;
+  kategori?: { nama_kategori: string };
+};
+
+const AccordionItem = ({ question, answer }: { question: string; answer: string }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -26,12 +37,12 @@ const AccordionItem = ({ question, answer }) => {
 export default function LandingPage() {
   const router = useRouter();
 
-  const [trendingBooks, setTrendingBooks] = useState([]);
+  const [trendingBooks, setTrendingBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedBook, setSelectedBook] = useState(null);
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // State baru untuk mengatur buka/tutup sinopsis panjang
@@ -64,15 +75,15 @@ export default function LandingPage() {
       });
   }, []);
 
-  const handleSearch = (e) => {
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && searchQuery.trim() !== '') {
       router.push(`/explore?q=${encodeURIComponent(searchQuery)}`);
     }
   };
 
-  const openBookDetail = (book) => {
+  const openBookDetail = (book: Book) => {
     setSelectedBook(book);
-    setIsExpanded(false); // Reset kondisi sinopsis saat modal baru dibuka
+    setIsExpanded(false);
     setIsModalOpen(true);
   };
 
@@ -227,7 +238,7 @@ export default function LandingPage() {
               </div>
 
               {/* Sinopsis Dinamis */}
-              <h3 className="text-[18px] md:text-[20px] font-extrabold text-[#111] mb-2 md:mb-3">Sinoption</h3>
+              <h3 className="text-[18px] md:text-[20px] font-extrabold text-[#111] mb-2 md:mb-3">Synopsis</h3>
               <p className="text-[14px] md:text-[16px] text-[#222] leading-[1.6] mb-5 md:mb-6 font-medium whitespace-pre-wrap">
                 {renderSynopsis()}
               </p>

@@ -1,54 +1,55 @@
-import {NextResponse} from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { prisma } from '@/lib/prisma';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export async function POST(request: Request) {
-    try{
+    try {
         const body = await request.json();
         const { npm, password } = body;
 
-        if(!npm || !password){
+        if (!npm || !password) {
             return NextResponse.json(
-                {
-                    success: false,
-                    message: "NPM dan password harus diisi!"
-                },
-                {status: 400}
+                { success: false, message: "NPM dan password harus diisi!" },
+                { status: 400 }
             );
         }
 
+        // 1. Cari email berdasarkan NPM di Prisma
         const userPrisma = await prisma.user.findUnique({
-            where:{npm:npm}
+            where: { npm }
         });
 
-        if(!userPrisma || !userPrisma.email){
+        if (!userPrisma?.email) {
             return NextResponse.json(
-                {
-                    success: false,
-                    message: "Login gagal! NPM tidak ditemukan"
-                },
-                {status: 401}
+                { success: false, message: "Login gagal! NPM tidak ditemukan." },
+                { status: 401 }
             );
         }
 
-        const {data,error} = await supabase.auth.signInWithPassword(
-            {
-                email: userPrisma.email,
-                password: password,
-            }
-        );
+        // 2. Login ke Supabase Auth pakai email yang ditemukan
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: userPrisma.email,
+            password
+        });
 
-        if(error){
+        if (error || !data.session) {
             return NextResponse.json(
-                {
-                    success: false,
-                    message: "Login gagal! Pastikan NPM dan password benar."
-                },
-                {status: 401}
+                { success: false, message: "Login gagal! Pastikan NPM dan password benar." },
+                { status: 401 }
+            );
+        }
+
+        // ✅ 3. Pastikan token ada sebelum dikirim
+        const token = data.session.access_token;
+        if (!token) {
+            return NextResponse.json(
+                { success: false, message: "Gagal mendapatkan token sesi." },
+                { status: 500 }
             );
         }
 
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
             {
                 success: true,
                 message: "Login berhasil!",
-                token: data.session?.access_token,
+                token,
                 user: {
                     id: data.user?.id,
                     npm: userPrisma.npm,
@@ -65,15 +66,15 @@ export async function POST(request: Request) {
                     nama: userPrisma.nama,
                 }
             },
-            {status: 200}
+            { status: 200 }
         );
-    } catch(error){
+
+    } catch (error) {
+        // ✅ Log error agar bisa di-debug
+        console.error("Error during login:", error);
         return NextResponse.json(
-            {
-                success: false,
-                message: "Internal Server Error"
-            },
-            {status: 500}
+            { success: false, message: "Internal Server Error" },
+            { status: 500 }
         );
     }
 }
