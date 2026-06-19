@@ -17,8 +17,11 @@ function getFileNameFromUrl(url: string): string | null {
 }
 
 // EDIT BUKU
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
+        // 解 resolvedParams dari Promise aturan baru Next.js
+        const { id } = await params;
+
         const authHeader = request.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
             return NextResponse.json(
@@ -48,7 +51,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
             );
         }
 
-        const id_buku = parseInt(params.id);
+        const id_buku = parseInt(id);
         if (isNaN(id_buku)) {
             return NextResponse.json(
                 { success: false, message: "Invalid Book ID parameter." },
@@ -166,11 +169,6 @@ export async function PUT(request: Request, { params }: { params: { id: string }
             }
         });
 
-        const responseData = {
-            ...updatedBuku,
-            rating_rata: Number(updatedBuku.rating_rata)
-        };
-
         return NextResponse.json(
             {
                 success: true,
@@ -192,8 +190,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 // HAPUS BUKU
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
+        // 解 resolvedParams dari Promise aturan baru Next.js
+        const { id } = await params;
+
         const authHeader = request.headers.get('Authorization');
         if (!authHeader?.startsWith('Bearer ')) {
             return NextResponse.json(
@@ -223,7 +224,7 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
             );
         }
 
-        const id_buku = parseInt(params.id);
+        const id_buku = parseInt(id);
         if (isNaN(id_buku)) {
             return NextResponse.json(
                 { success: false, message: "Invalid Book ID parameter." },
