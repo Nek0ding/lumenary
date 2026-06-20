@@ -1,9 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Search, Loader2, BookOpen, Settings, LogOut, X, Star } from 'lucide-react';
 import Link from 'next/link';
-// Tambahkan useSearchParams
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import Footer from '@/components/footer'; 
@@ -21,28 +20,24 @@ interface Buku {
     kategori?: { nama_kategori: string };
 }
 
-export default function ExplorePage() {
+// 1. UBAH NAMA KOMPONEN UTAMA JADI ExploreContent (Bukan default export)
+function ExploreContent() {
     const pathname = usePathname();
     const router = useRouter();
-    // Inisialisasi searchParams
     const searchParams = useSearchParams();
 
-    // States untuk Data Buku & Auth
     const [books, setBooks] = useState<Buku[]>([]);
     const [loading, setLoading] = useState(true);
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [userProfile, setUserProfile] = useState({ name: 'User', npm: '' });
     
-    // States untuk Search
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
 
-    // States untuk Modal Detail Buku
     const [selectedBook, setSelectedBook] = useState<Buku | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
 
-    // Fungsi fetch API Buku
     const fetchBooks = async (query = '') => {
         setIsSearching(true);
         try {
@@ -60,7 +55,6 @@ export default function ExplorePage() {
         }
     };
 
-    // Cek status login DAN parameter URL saat pertama kali render
     useEffect(() => {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
@@ -73,41 +67,32 @@ export default function ExplorePage() {
             setIsLoggedIn(false);
         }
         
-        // Cek apakah ada query param '?q=' bawaan dari Landing Page
         const queryFromUrl = searchParams.get('q');
         
         if (queryFromUrl) {
-            setSearchQuery(queryFromUrl); // Isi kotak search bar otomatis
-            fetchBooks(queryFromUrl);     // Langsung cari data bukunya
+            setSearchQuery(queryFromUrl); 
+            fetchBooks(queryFromUrl);     
         } else {
-            fetchBooks();                 // Kalau kosong, ambil semua buku (terbaru)
+            fetchBooks();                 
         }
-    }, [searchParams]); // Jadikan searchParams sebagai dependency
+    }, [searchParams]);
 
-    // Handle form submit pencarian manual
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // Opsional: perbarui URL agar konsisten saat di-share
         if (searchQuery.trim() !== '') {
              router.push(`/explore?q=${encodeURIComponent(searchQuery)}`);
         } else {
              router.push(`/explore`);
         }
-        
         fetchBooks(searchQuery);
     };
 
-    // Fungsi Log Out
     const handleLogout = () => {
         localStorage.removeItem('lumenary_token');
         localStorage.removeItem('lumenary_user');
         router.push('/login');
     };
 
-    // ==========================================
-    // FUNGSI MODAL BUKU
-    // ==========================================
     const openBookDetail = (book: Buku) => {
         setSelectedBook(book);
         setIsExpanded(false);
@@ -173,7 +158,6 @@ export default function ExplorePage() {
                         <X color="#333" className="w-6 h-6 md:w-7 md:h-7 hover:scale-110 transition-transform" />
                     </button>
 
-                    {/* KIRI: COVER & ISBN */}
                     <div className="flex flex-col items-center w-full max-w-[200px] md:max-w-[280px] shrink-0 mx-auto">
                         <img src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} alt={selectedBook.judul} style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', borderRadius: '16px', boxShadow: '0 12px 24px rgba(0,0,0,0.15)' }} />
                         <div className="flex gap-1 md:gap-2 mt-4 md:mt-5">
@@ -186,7 +170,6 @@ export default function ExplorePage() {
                         </p>
                     </div>
 
-                    {/* KANAN: DETAIL INFO */}
                     <div className="flex flex-col flex-1 pt-0 md:pt-2">
                         <h2 className="text-[24px] md:text-[32px] font-extrabold text-[#111] mb-1 md:mb-2 leading-[1.2]">{selectedBook.judul}</h2>
                         <p className="text-[16px] md:text-[20px] font-medium text-[#555] mb-3 md:mb-4">{selectedBook.penulis}</p>
@@ -236,7 +219,6 @@ export default function ExplorePage() {
         );
     };
 
-    // Tampilan Loading Awal
     if (isLoggedIn === null) {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-[#F8F8FF]">
@@ -245,9 +227,6 @@ export default function ExplorePage() {
         );
     }
 
-    // ==========================================
-    // FUNGSI ISI: GRID BUKU 
-    // ==========================================
     const renderPageContent = () => (
         <div className="w-full max-w-[1000px] mx-auto animate-in fade-in duration-300">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 mt-4">
@@ -324,9 +303,6 @@ export default function ExplorePage() {
         </div>
     );
 
-    // ==========================================
-    // RENDER: JIKA USER SUDAH LOGIN (DASHBOARD LAYOUT)
-    // ==========================================
     if (isLoggedIn) {
         return (
             <>
@@ -412,14 +388,10 @@ export default function ExplorePage() {
         );
     }
 
-    // ==========================================
-    // RENDER: JIKA USER BELUM LOGIN (PUBLIC LAYOUT)
-    // ==========================================
     return (
         <>
             {renderModal()}
             <div className={`min-h-screen flex flex-col bg-zinc-50 ${isModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
-                {/* ====== NAVBAR DARI LANDING PAGE ====== */}
                 <header className="w-full flex items-center justify-between gap-4 px-6 md:px-12 py-5 bg-white border-b border-zinc-200 sticky top-0 z-50 shadow-sm">
                     <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => router.push('/')}>
                         <img className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
@@ -452,5 +424,18 @@ export default function ExplorePage() {
                 <Footer />
             </div>
         </>
+    );
+}
+
+// 2. FUNGSI UTAMA (Di-export default, membungkus ExploreContent dengan Suspense)
+export default function ExplorePage() {
+    return (
+        <Suspense fallback={
+            <div className="flex h-screen w-full items-center justify-center bg-[#F8F8FF]">
+                <Loader2 className="w-10 h-10 text-[#161B85] animate-spin" />
+            </div>
+        }>
+            <ExploreContent />
+        </Suspense>
     );
 }
