@@ -382,12 +382,7 @@ function ExploreContent() {
                         Manage book lists, active reservations, and track your reading preferences in one place.
                     </p>
                 </div>
-                
-                {isLoggedIn && (
-                    <Link href="/dashboard/collection" className="bg-[#161B85] hover:bg-[#0E1154] text-white px-6 py-2.5 rounded-full text-[14px] font-bold transition-colors shadow-sm whitespace-nowrap text-center">
-                        My Collection
-                    </Link>
-                )}
+        
             </div>
 
             {!isLoggedIn && (
