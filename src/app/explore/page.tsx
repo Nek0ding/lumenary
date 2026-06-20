@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2, BookOpen, Settings, LogOut, X, Star } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+// Tambahkan useSearchParams
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import Footer from '@/components/footer'; 
 
@@ -15,7 +16,7 @@ interface Buku {
     cover_buku: string | null;
     isbn?: string;
     stok?: number;
-    stok_tersedia?: number; // Terkadang dari API namanya stok_tersedia
+    stok_tersedia?: number; 
     rating_rata: number | null;
     kategori?: { nama_kategori: string };
 }
@@ -23,6 +24,8 @@ interface Buku {
 export default function ExplorePage() {
     const pathname = usePathname();
     const router = useRouter();
+    // Inisialisasi searchParams
+    const searchParams = useSearchParams();
 
     // States untuk Data Buku & Auth
     const [books, setBooks] = useState<Buku[]>([]);
@@ -57,7 +60,7 @@ export default function ExplorePage() {
         }
     };
 
-    // Cek status login saat pertama kali render
+    // Cek status login DAN parameter URL saat pertama kali render
     useEffect(() => {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
@@ -70,12 +73,28 @@ export default function ExplorePage() {
             setIsLoggedIn(false);
         }
         
-        fetchBooks();
-    }, []);
+        // Cek apakah ada query param '?q=' bawaan dari Landing Page
+        const queryFromUrl = searchParams.get('q');
+        
+        if (queryFromUrl) {
+            setSearchQuery(queryFromUrl); // Isi kotak search bar otomatis
+            fetchBooks(queryFromUrl);     // Langsung cari data bukunya
+        } else {
+            fetchBooks();                 // Kalau kosong, ambil semua buku (terbaru)
+        }
+    }, [searchParams]); // Jadikan searchParams sebagai dependency
 
-    // Handle form submit pencarian
+    // Handle form submit pencarian manual
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Opsional: perbarui URL agar konsisten saat di-share
+        if (searchQuery.trim() !== '') {
+             router.push(`/explore?q=${encodeURIComponent(searchQuery)}`);
+        } else {
+             router.push(`/explore`);
+        }
+        
         fetchBooks(searchQuery);
     };
 
@@ -144,7 +163,6 @@ export default function ExplorePage() {
     const renderModal = () => {
         if (!isModalOpen || !selectedBook) return null;
         
-        // Ambil stok dari salah satu field yang tersedia di database
         const stockCount = selectedBook.stok ?? selectedBook.stok_tersedia ?? 0;
 
         return (
@@ -241,6 +259,12 @@ export default function ExplorePage() {
                         Manage book lists, active reservations, and track your reading preferences in one place.
                     </p>
                 </div>
+                
+                {isLoggedIn && (
+                    <Link href="/dashboard/collection" className="bg-[#161B85] hover:bg-[#0E1154] text-white px-6 py-2.5 rounded-full text-[14px] font-bold transition-colors shadow-sm whitespace-nowrap text-center">
+                        Edit Collection
+                    </Link>
+                )}
             </div>
 
             {!isLoggedIn && (
@@ -336,55 +360,54 @@ export default function ExplorePage() {
                                     <Link href="/dashboard/penalty" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[16px] font-medium transition-colors ${pathname.startsWith('/dashboard/penalty') ? 'bg-zinc-100 text-[#161B85] font-bold' : 'text-black hover:bg-zinc-50'}`}>
                                         <svg xmlns="http://www.w3.org/2000/svg" width="27" height="33" viewBox="0 0 27 33" fill="none"><path d="M12.3333 15H20.3333M12.3333 20.3333H20.3333M12.3333 9.66667H20.3333M7 4.33333C7 3.97971 7.14048 3.64057 7.39052 3.39052C7.64057 3.14048 7.97971 3 8.33333 3H24.3333C24.687 3 25.0261 3.14048 25.2761 3.39052C25.5262 3.64057 25.6667 3.97971 25.6667 4.33333V29.6667L21 26.3333L16.3333 29.6667L11.6667 26.3333L7 29.6667V4.33333Z" stroke="currentColor" strokeWidth="2.66667" strokeLinecap="round" strokeLinejoin="round" /></svg> Penalty Bill
                                     </Link>
+                                </nav>
+                            </div>
+                        </div>
+
+                        <div className="px-6 pb-8">
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Settings</p>
+                            <nav className="flex flex-col gap-2">
+                                <Link href="/settings" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors ${pathname.startsWith('/settings') ? 'bg-zinc-100 text-[#161B85] font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}>
+                                    <Settings size={20} /> Setting
+                                </Link>
+                                <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors w-full text-left cursor-pointer">
+                                    <LogOut size={20} /> Log Out
+                                </button>
                             </nav>
                         </div>
-                    </div>
+                    </aside>
 
-                    <div className="px-6 pb-8">
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Settings</p>
-                        <nav className="flex flex-col gap-2">
-                            <Link href="/settings" className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors ${pathname.startsWith('/settings') ? 'bg-zinc-100 text-[#161B85] font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}>
-                                <Settings size={20} /> Setting
-                            </Link>
-                            <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors w-full text-left cursor-pointer">
-                                <LogOut size={20} /> Log Out
-                            </button>
-                        </nav>
-                    </div>
-                </aside>
+                    <main className="flex-1 flex flex-col h-screen overflow-y-auto relative">
+                        <header className="flex items-center justify-between px-8 py-6 bg-[#F8F8FF] sticky top-0 z-10">
+                            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-[600px]">
+                                <button type="submit" className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-[#161B85]">
+                                    <Search size={18} />
+                                </button>
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Search for a book title, author, or ISBN..."
+                                    className="w-full h-[46px] pl-12 pr-4 text-black bg-white rounded-full text-[14px] border border-zinc-200 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] shadow-sm"
+                                />
+                            </form>
 
-                <main className="flex-1 flex flex-col h-screen overflow-y-auto relative">
-                    <header className="flex items-center justify-between px-8 py-6 bg-[#F8F8FF] sticky top-0 z-10">
-                        <form onSubmit={handleSearchSubmit} className="relative w-full max-w-[600px]">
-                            <button type="submit" className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-[#161B85]">
-                                <Search size={18} />
-                            </button>
-                            <input
-                                type="text"
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search for a book title, author, or ISBN..."
-                                className="w-full h-[46px] pl-12 pr-4 text-black bg-white rounded-full text-[14px] border border-zinc-200 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] shadow-sm"
-                            />
-                        </form>
+                            <div className="flex items-center gap-6">
+                                <Link className="flex items-center gap-3 border-l border-zinc-300 pl-6 cursor-pointer" href="/settings">
+                                    <div className="flex flex-col">
+                                        <span className="text-[14px] font-bold text-black leading-tight line-clamp-1">{userProfile.name}</span>
+                                        <span className="text-[11px] text-zinc-500 uppercase">{userProfile.npm}</span>
+                                    </div>
+                                </Link>
+                            </div>
+                        </header>
 
-                        <div className="flex items-center gap-6">
-                            <Link className="flex items-center gap-3 border-l border-zinc-300 pl-6 cursor-pointer" href="/settings">
-                                <div className="flex flex-col">
-                                    <span className="text-[14px] font-bold text-black leading-tight line-clamp-1">{userProfile.name}</span>
-                                    <span className="text-[11px] text-zinc-500 uppercase">{userProfile.npm}</span>
-                                </div>
-                            </Link>
+                        <div className="flex-1 px-8 pb-8">
+                            {renderPageContent()}
                         </div>
-                    </header>
-
-                    <div className="flex-1 px-8 pb-8">
-                        {renderPageContent()}
-                    </div>
-                <Footer />
-                </main>
-                
-            </div>
+                        <Footer />
+                    </main>
+                </div>
             </>
         );
     }
@@ -394,40 +417,40 @@ export default function ExplorePage() {
     // ==========================================
     return (
         <>
-        {renderModal()}
-        <div className={`min-h-screen flex flex-col bg-zinc-50 ${isModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
-            {/* ====== NAVBAR DARI LANDING PAGE ====== */}
-            <header className="w-full flex items-center justify-between gap-4 px-6 md:px-12 py-5 bg-white border-b border-zinc-200 sticky top-0 z-50 shadow-sm">
-                <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => router.push('/')}>
-                    <img className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
-                    <div className="flex flex-col gap-[2px]">
-                        <span className="text-[#161B85] text-[18px] md:text-[24px] font-bold tracking-wide leading-none">Lumenary</span>
-                        <span className="text-[#492073] text-[6px] md:text-[8px] font-bold uppercase tracking-wider">Gunadarma Library</span>
+            {renderModal()}
+            <div className={`min-h-screen flex flex-col bg-zinc-50 ${isModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
+                {/* ====== NAVBAR DARI LANDING PAGE ====== */}
+                <header className="w-full flex items-center justify-between gap-4 px-6 md:px-12 py-5 bg-white border-b border-zinc-200 sticky top-0 z-50 shadow-sm">
+                    <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => router.push('/')}>
+                        <img className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
+                        <div className="flex flex-col gap-[2px]">
+                            <span className="text-[#161B85] text-[18px] md:text-[24px] font-bold tracking-wide leading-none">Lumenary</span>
+                            <span className="text-[#492073] text-[6px] md:text-[8px] font-bold uppercase tracking-wider">Gunadarma Library</span>
+                        </div>
                     </div>
-                </div>
 
-                <div className="hidden lg:flex items-center gap-12">
-                    <Link href="/" className="text-[#020617] text-[18px] font-bold hover:text-[#161B85] transition-colors">Home</Link>
-                    <Link href="/explore" className="text-[#161B85] text-[18px] font-bold transition-colors">Explore Books</Link>
-                    <Link href="/#features" className="text-[#020617] text-[18px] font-bold hover:text-[#161B85] transition-colors">Features</Link>
-                    <Link href="/#about" className="text-[#020617] text-[18px] font-bold hover:text-[#161B85] transition-colors">About</Link>
-                </div>
+                    <div className="hidden lg:flex items-center gap-12">
+                        <Link href="/" className="text-[#020617] text-[18px] font-bold hover:text-[#161B85] transition-colors">Home</Link>
+                        <Link href="/explore" className="text-[#161B85] text-[18px] font-bold transition-colors">Explore Books</Link>
+                        <Link href="/#features" className="text-[#020617] text-[18px] font-bold hover:text-[#161B85] transition-colors">Features</Link>
+                        <Link href="/#about" className="text-[#020617] text-[18px] font-bold hover:text-[#161B85] transition-colors">About</Link>
+                    </div>
 
-                <button
-                    type="button"
-                    onClick={() => router.push('/login')}
-                    className="relative cursor-pointer px-5 py-2 md:px-6 md:py-2.5 text-[#FCFDE9] text-[14px] md:text-[18px] font-bold rounded-full shadow-[0px_2px_4px_rgba(0,0,0,0.25)] hover:brightness-110 transition-all active:scale-95 border-none"
-                    style={{ background: 'linear-gradient(180deg, #DDDEF2 10.1%, #8EA1E6 44.71%, #3037B4 76.92%, #101464 100%)' }}
-                >
-                    Get Started
-                </button>
-            </header>
-            
-            <main className="flex-1 px-4 md:px-6 py-10 md:py-16">
-                {renderPageContent()}
-            </main>
-            <Footer />
-        </div>
+                    <button
+                        type="button"
+                        onClick={() => router.push('/login')}
+                        className="relative cursor-pointer px-5 py-2 md:px-6 md:py-2.5 text-[#FCFDE9] text-[14px] md:text-[18px] font-bold rounded-full shadow-[0px_2px_4px_rgba(0,0,0,0.25)] hover:brightness-110 transition-all active:scale-95 border-none"
+                        style={{ background: 'linear-gradient(180deg, #DDDEF2 10.1%, #8EA1E6 44.71%, #3037B4 76.92%, #101464 100%)' }}
+                    >
+                        Get Started
+                    </button>
+                </header>
+                
+                <main className="flex-1 px-4 md:px-6 py-10 md:py-16">
+                    {renderPageContent()}
+                </main>
+                <Footer />
+            </div>
         </>
     );
 }
