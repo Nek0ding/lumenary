@@ -110,6 +110,10 @@ export default function LandingPage() {
     router.push('/')
   };
 
+  const explore = () => {
+    router.push('/explore')
+  };
+
   const getStarted = () => {
     const token = localStorage.getItem('lumenary_token');
     if (!token) {
@@ -291,11 +295,18 @@ export default function LandingPage() {
                 </div>
 
                 <div className="hidden lg:flex items-center gap-12">
-                  {['Home', 'Explore Books', 'Features', 'About'].map((menu) => (
-                    <a key={menu} href={`#${menu.toLowerCase().replace(' ', '-')}`} className="text-[#020617] text-[20px] font-bold hover:opacity-70 transition-opacity">
-                      {menu}
-                    </a>
-                  ))}
+                  <a onClick={landingPage} className="text-[#020617] text-[20px] font-bold hover:opacity-70 transition-opacity">
+                    Home
+                  </a>
+                  <a onClick={explore} className="text-[#020617] text-[20px] font-bold hover:opacity-70 transition-opacity">
+                    Explore Books
+                  </a>
+                  <a href="#features" className="text-[#020617] text-[20px] font-bold hover:opacity-70 transition-opacity">
+                    Features
+                  </a>
+                  <a href="#about" className="text-[#020617] text-[20px] font-bold hover:opacity-70 transition-opacity">
+                    About
+                  </a>
                 </div>
                 <button
                   type="button"
@@ -325,7 +336,7 @@ export default function LandingPage() {
                     The ultimate digital gateway to streamline your book borrowing experience. Instantly lock your reading list and pick it up at your preferred campus library without the queue.
                   </p>
                   <Link href="/explore">
-                    <button className="w-fit px-6 py-[12px] md:px-8 md:py-[14px] text-[#FCFDE9] text-[18px] md:text-[24px] lg:text-[28px] font-bold rounded-full flex items-center gap-[10px] md:gap-[12px] shadow-[0px_4px_6px_rgba(0,0,0,0.15)] group hover:brightness-105 transition-all" style={{ background: 'linear-gradient(120deg, #DDDEF2 10%, #8EA1E6 45%, #3037B4 77%, #101464 100%)' }}>
+                    <button className="cursor-pointer w-fit px-6 py-[12px] md:px-8 md:py-[14px] text-[#FCFDE9] text-[18px] md:text-[24px] lg:text-[28px] font-bold rounded-full flex items-center gap-[10px] md:gap-[12px] shadow-[0px_4px_6px_rgba(0,0,0,0.15)] group hover:brightness-105 transition-all" style={{ background: 'linear-gradient(120deg, #DDDEF2 10%, #8EA1E6 45%, #3037B4 77%, #101464 100%)' }}>
                       Explore Library
                       <div className="w-7 h-7 md:w-9 md:h-9 bg-white text-[#101464] rounded-full flex items-center justify-center font-bold text-[16px] md:text-[20px] group-hover:translate-x-1 transition-transform">
                         <svg width="17" height="14" viewBox="0 0 17 14" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-[12px] h-[10px] md:w-[17px] md:h-[14px]">
