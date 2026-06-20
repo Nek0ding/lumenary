@@ -96,7 +96,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
                 <div className="px-6 pb-8">
                     <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Settings</p>
                     <nav className="flex flex-col gap-2">
-                        <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
+                        <Link href="/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors">
                             <Settings size={20} /> Setting
                         </Link>
                         <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-zinc-600 hover:bg-zinc-50 transition-colors w-full text-left cursor-pointer">
@@ -121,17 +121,17 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
                     </div>
 
                     <div className="flex items-center gap-6">
-                        <button className="relative text-zinc-500 hover:text-[#161B85] transition-colors">
+                        {/* <button className="relative text-zinc-500 hover:text-[#161B85] transition-colors">
                             <Bell size={24} />
                             <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#F8F8FF]"></span>
-                        </button>
-                        <div className="flex items-center gap-3 border-l border-zinc-300 pl-6">
+                        </button> */}
+                        <Link className="flex items-center gap-3 border-l border-zinc-300 pl-6 cursor-pointer" href="/settings">
                             <div className="flex flex-col">
                                 {/* Render Nama dan NPM dari state */}
                                 <span className="text-[14px] font-bold text-black leading-tight line-clamp-1">{userProfile.name}</span>
                                 <span className="text-[11px] text-zinc-500 uppercase">{userProfile.npm}</span>
                             </div>
-                        </div>
+                        </Link>
                     </div>
                 </header>
 

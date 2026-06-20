@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Star, X } from 'lucide-react';
+import { Star, X , Loader2} from 'lucide-react';
 
 interface Stats {
     booksHandled: number;
@@ -178,8 +178,14 @@ export default function DashboardPage() {
         );
     };
 
-    if (loading) return <div className="flex h-[50vh] w-full items-center justify-center text-zinc-500 font-medium">Memuat data dashboard...</div>;
-    if (error) return (
+    if (loading) {
+        return (
+            <div className="flex h-[70vh] w-full text-black items-center justify-center">
+                <Loader2 className="w-8 h-8 text-[#A347FF] animate-spin" />
+                Loading Dashboard...
+            </div>
+        );
+    } if (error) return (
         <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2 text-red-500 font-semibold">
             <p>⚠️ {error}</p>
             <button onClick={() => window.location.reload()} className="text-[13px] bg-zinc-200 text-zinc-700 px-4 py-1.5 rounded-lg hover:bg-zinc-300">Try again</button>
