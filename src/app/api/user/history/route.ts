@@ -44,7 +44,7 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, message: "User tidak ditemukan di database!" }, { status: 404 });
         }
 
-        // Kunci utama: Pastikan token pemilik email MATCH dengan NPM yang diminta di URL
+        // Pastikan token pemilik email MATCH dengan NPM yang diminta di URL
         if (dbUser.npm !== requestedNpm) {
             return NextResponse.json(
                 { success: false, message: "Akses Terlarang! Anda tidak diizinkan melihat data riwayat mahasiswa lain." },
@@ -55,9 +55,8 @@ export async function GET(request: Request) {
         const userId = dbUser.id_user;
 
         // ==========================================
-        // 4. QUERY DATA PEMINJAMAN
+        // 4. QUERY DATA PEMINJAMAN (+ INCLUDE DENDA)
         // ==========================================
-        // Ambil semua data peminjaman milik user ini beserta info buku & kategori
         const semuaPeminjaman = await prisma.peminjaman.findMany({
             where: { id_user: userId },
             include: {
@@ -67,9 +66,10 @@ export async function GET(request: Request) {
                             select: { nama_kategori: true }
                         }
                     }
-                }
+                },
+                denda: true // Tambahkan ini agar data denda ikut terambil dari database
             },
-            orderBy: { created_at: 'desc' } // Riwayat terbaru muncul paling atas
+            orderBy: { created_at: 'desc' }
         });
 
         // ==========================================
@@ -92,14 +92,23 @@ export async function GET(request: Request) {
                 rating_rata: Number(pinjam.buku.rating_rata),
                 tanggal_pinjam: pinjam.tanggal_pinjam,
                 tanggal_kembali: pinjam.tanggal_kembali,
-                status: pinjam.status // 'direservasi', 'dipinjam', 'terlambat', 'dikembalikan', 'dibatalkan'
+                tanggal_dikembalikan: pinjam.tanggal_dikembalikan,
+                kode_peminjaman: pinjam.kode_peminjaman,
+                status: pinjam.status,
+                // Map objek denda jika ada, ubah Decimal ke Number agar aman diserialisasi
+                denda: pinjam.denda ? {
+                    id_denda: pinjam.denda.id_denda,
+                    jumlah_denda: Number(pinjam.denda.jumlah_denda),
+                    hari_terlambat: pinjam.denda.hari_terlambat,
+                    keterangan_denda: pinjam.denda.keterangan_denda,
+                    status_bayar: pinjam.denda.status_bayar,
+                    tanggal_bayar: pinjam.denda.tanggal_bayar
+                } : null
             };
 
-            // Masuk kategori ACTIVE jika statusnya belum selesai
             if (['direservasi', 'dipinjam', 'terlambat'].includes(pinjam.status)) {
                 activeLoans.push(formattedItem);
             } else {
-                // Masuk kategori PAST jika sudah 'dikembalikan' atau 'dibatalkan'
                 pastLoans.push(formattedItem);
             }
         }

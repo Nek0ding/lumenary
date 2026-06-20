@@ -36,7 +36,6 @@ export async function GET(request: Request) {
         // ==========================================
         // 3. CEK KEPEMILIKAN DATA (AUTHORIZATION / IDOR PROTECTION)
         // ==========================================
-        // Cari data user di database berdasarkan email asli dari token yang sudah tervalidasi
         const dbUser = await prisma.user.findUnique({
             where: { email: authUser.email }
         });
@@ -45,8 +44,6 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, message: "User tidak ditemukan di database!" }, { status: 404 });
         }
 
-        // 🛡️ INI KUNCI KEAMANANNYA:
-        // Pastikan NPM yang diminta di URL SAMA PERSIS dengan NPM milik akun yang sedang login
         if (dbUser.npm !== requestedNpm) {
             return NextResponse.json(
                 { success: false, message: "Akses Terlarang! Anda tidak diizinkan melihat data milik mahasiswa lain." },
@@ -91,10 +88,12 @@ export async function GET(request: Request) {
         const currentReadingRaw = await prisma.peminjaman.findMany({
             where: {
                 id_user: userId,
-                status: { in: ['dipinjam', 'terlambat'] }
+                // Tambahkan 'direservasi' agar pinjaman baru langsung muncul di dashboard
+                status: { in: ['direservasi', 'dipinjam', 'terlambat'] }
             },
             include: {
-                buku: { include: { kategori: true } }
+                buku: { include: { kategori: true } },
+                denda: true // Ambil data denda dari database
             },
             orderBy: { tanggal_kembali: 'asc' }
         });
@@ -128,7 +127,11 @@ export async function GET(request: Request) {
                     status: pinjam.status,
                     stok: pinjam.buku.stok,
                     isbn: pinjam.buku.isbn,
-                    sinopsis: pinjam.buku.sinopsis
+                    sinopsis: pinjam.buku.sinopsis,
+                    // Penambahan data pelengkap untuk Modal
+                    kode_peminjaman: pinjam.kode_peminjaman,
+                    tanggal_pinjam: pinjam.tanggal_pinjam,
+                    denda: pinjam.denda ? Number(pinjam.denda.jumlah_denda) : 0
                 })),
                 recommended: recommendedRaw.map(buku => ({
                     id: buku.id_buku,
