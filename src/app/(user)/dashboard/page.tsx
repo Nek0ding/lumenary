@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Star, X } from 'lucide-react';
+import { Star, X , Loader2} from 'lucide-react';
 
 interface Stats {
     booksHandled: number;
@@ -178,8 +178,14 @@ export default function DashboardPage() {
         );
     };
 
-    if (loading) return <div className="flex h-[50vh] w-full items-center justify-center text-zinc-500 font-medium">Memuat data dashboard...</div>;
-    if (error) return (
+    if (loading) {
+        return (
+            <div className="flex h-[70vh] w-full text-black items-center justify-center">
+                <Loader2 className="w-8 h-8 text-[#A347FF] animate-spin" />
+                Loading Dashboard...
+            </div>
+        );
+    } if (error) return (
         <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2 text-red-500 font-semibold">
             <p>⚠️ {error}</p>
             <button onClick={() => window.location.reload()} className="text-[13px] bg-zinc-200 text-zinc-700 px-4 py-1.5 rounded-lg hover:bg-zinc-300">Try again</button>
@@ -218,7 +224,7 @@ export default function DashboardPage() {
                                     {selectedBook.stok > 0 ? 'Available for Loan' : 'Out of Stock'}
                                 </span>
                                 <span className="text-zinc-300 mx-1 hidden sm:block">|</span>
-                                <span className="text-[13px] md:text-[15px] font-medium w-full sm:w-auto">Stock leftovers: <b className="font-extrabold">{selectedBook.stok} Books</b></span>
+                                <span className="text-[13px] md:text-[15px] text-[#111] font-medium w-full sm:w-auto">Stock leftovers: <b className="font-extrabold">{selectedBook.stok} Books</b></span>
                             </div>
 
                             <span className={`text-[12px] md:text-[14px] font-bold px-3 py-1.5 md:px-4 md:py-2 rounded-lg w-fit mb-5 ${getCategoryBadge(selectedBook.kategori?.nama_kategori || '')}`}>

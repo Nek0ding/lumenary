@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { X } from 'lucide-react'; // Pastikan lucide-react terinstall untuk icon X
+import { X, Loader2} from 'lucide-react'; // Pastikan lucide-react terinstall untuk icon X
 
 interface LoanItem {
     id_peminjaman: number;
@@ -125,8 +125,10 @@ export default function HistoryPage() {
         return 'bg-zinc-100 text-zinc-700';
     };
 
-    if (loading) return <div className="flex h-[50vh] w-full items-center justify-center text-zinc-500 font-medium">Memuat data riwayat...</div>;
-
+<div className="flex h-[70vh] w-full text-black items-center justify-center">
+                <Loader2 className="w-8 h-8 text-[#A347FF] animate-spin" />
+                Loading history...
+            </div>
     if (error) return (
         <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2 text-red-500 font-semibold">
             <p>⚠️ {error}</p>
