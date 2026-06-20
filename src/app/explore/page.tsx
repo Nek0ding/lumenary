@@ -382,7 +382,6 @@ function ExploreContent() {
                         Manage book lists, active reservations, and track your reading preferences in one place.
                     </p>
                 </div>
-        
             </div>
 
             {!isLoggedIn && (
