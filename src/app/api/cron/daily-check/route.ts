@@ -107,10 +107,13 @@ export async function GET(request: Request) {
 
     // ── 3. CEK RESERVASI EXPIRED ──────────────────────────────────────────
     try {
+        // Mundurkan waktu persis 24 jam dari saat cron dieksekusi
+        const batas24JamLalu = new Date(new Date().getTime() - (24 * 60 * 60 * 1000));
+
         const reservasiExpired = await prisma.peminjaman.findMany({
             where: {
                 status: StatusPeminjaman.direservasi,
-                tanggal_pinjam: { lt: today },
+                created_at: { lt: batas24JamLalu }, // Gunakan created_at, bukan tanggal_pinjam
             },
             select: { id_peminjaman: true, id_buku: true }
         });
