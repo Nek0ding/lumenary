@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Search, Loader2, BookOpen, Settings, LogOut, X, Star } from 'lucide-react';
+import { Search, Loader2, BookOpen, Settings, LogOut, X, Star, CheckCircle2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
@@ -20,24 +20,33 @@ interface Buku {
     kategori?: { nama_kategori: string };
 }
 
-// 1. UBAH NAMA KOMPONEN UTAMA JADI ExploreContent (Bukan default export)
 function ExploreContent() {
     const pathname = usePathname();
     const router = useRouter();
     const searchParams = useSearchParams();
 
+    // Data States
     const [books, setBooks] = useState<Buku[]>([]);
     const [loading, setLoading] = useState(true);
     const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
     const [userProfile, setUserProfile] = useState({ name: 'User', npm: '' });
     
+    // Search States
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
 
+    // Modal & Book States
     const [selectedBook, setSelectedBook] = useState<Buku | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
 
+    // Reservation Process States
+    const [isTnCOpen, setIsTnCOpen] = useState(false);
+    const [agreedToTnC, setAgreedToTnC] = useState(false);
+    const [isReserving, setIsReserving] = useState(false);
+    const [reservationSuccess, setReservationSuccess] = useState<{kode: string, judul: string} | null>(null);
+
+    // --- FETCH BUKU ---
     const fetchBooks = async (query = '') => {
         setIsSearching(true);
         try {
@@ -55,6 +64,7 @@ function ExploreContent() {
         }
     };
 
+    // --- INIT USE EFFECT ---
     useEffect(() => {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
@@ -68,7 +78,6 @@ function ExploreContent() {
         }
         
         const queryFromUrl = searchParams.get('q');
-        
         if (queryFromUrl) {
             setSearchQuery(queryFromUrl); 
             fetchBooks(queryFromUrl);     
@@ -77,6 +86,7 @@ function ExploreContent() {
         }
     }, [searchParams]);
 
+    // --- HANDLERS ---
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (searchQuery.trim() !== '') {
@@ -93,6 +103,7 @@ function ExploreContent() {
         router.push('/login');
     };
 
+    // --- MODAL TRIGGERS ---
     const openBookDetail = (book: Buku) => {
         setSelectedBook(book);
         setIsExpanded(false);
@@ -107,20 +118,61 @@ function ExploreContent() {
         }, 300);
     };
 
-    const handleReserve = () => {
+    const handleReserveClick = () => {
         const token = localStorage.getItem('lumenary_token');
         if (!token) {
-            alert("Silakan Sign In terlebih dahulu untuk mereservasi buku ini.");
             router.push('/login');
         } else {
-            alert(`Buku "${selectedBook?.judul}" siap direservasi!`);
-            closeBookDetail();
+            setIsTnCOpen(true);
+            setAgreedToTnC(false);
         }
     };
 
+    // --- EXECUTE RESERVATION API ---
+    const submitReservation = async () => {
+        if (!selectedBook || !agreedToTnC) return;
+        setIsReserving(true);
+        try {
+            const token = localStorage.getItem('lumenary_token');
+            const res = await fetch('/api/peminjaman', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id_buku: Number(selectedBook.id_buku) })
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                // Sukses
+                setIsTnCOpen(false);
+                closeBookDetail(); 
+                setReservationSuccess({
+                    kode: data.data.kode_peminjaman,
+                    judul: selectedBook.judul
+                });
+                fetchBooks(searchQuery); // Refresh stok katalog
+            } else {
+                // Gagal
+                if (data.code === 'INCOMPLETE_PROFILE') {
+                    alert("Attention: Please complete your active residential address and phone number in Settings before borrowing a book!");
+                    router.push('/settings');
+                } else {
+                    alert(`Failed: ${data.message}`);
+                }
+            }
+        } catch(e) {
+            alert("An error occurred connecting to the server.");
+        } finally {
+            setIsReserving(false);
+        }
+    };
+
+    // --- RENDER HELPERS ---
     const renderSynopsis = () => {
         if (!selectedBook) return null;
-        const text = selectedBook.sinopsis || "Sinopsis tidak tersedia untuk buku ini.";
+        const text = selectedBook.sinopsis || "Synopsis is not available for this book.";
         const maxLength = 150;
 
         if (text.length <= maxLength) return text;
@@ -129,7 +181,7 @@ function ExploreContent() {
             return (
                 <>
                     {text}
-                    <span onClick={() => setIsExpanded(false)} style={{ cursor: 'pointer', fontWeight: '800', marginLeft: '6px', color: '#6B21A8' }}>
+                    <span onClick={() => setIsExpanded(false)} className="cursor-pointer font-extrabold ml-1 text-[#161B85]">
                         (show less)
                     </span>
                 </>
@@ -138,28 +190,27 @@ function ExploreContent() {
         return (
             <>
                 {text.substring(0, maxLength)}
-                <span onClick={() => setIsExpanded(true)} style={{ cursor: 'pointer', fontWeight: '800', color: '#111' }}>
+                <span onClick={() => setIsExpanded(true)} className="cursor-pointer font-extrabold ml-1 text-[#111]">
                     ...read more
                 </span>
             </>
         );
     };
 
+    // --- 1. MODAL BUKU UTAMA ---
     const renderModal = () => {
         if (!isModalOpen || !selectedBook) return null;
-        
         const stockCount = selectedBook.stok ?? selectedBook.stok_tersedia ?? 0;
 
         return (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-                <div className="flex flex-col md:flex-row relative no-scrollbar p-6 md:p-8 gap-6 md:gap-8 animate-in zoom-in-95 duration-200" style={{ backgroundColor: '#F8F5FF', width: '100%', maxWidth: '850px', maxHeight: '90vh', overflowY: 'auto', borderRadius: '24px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)' }}>
-                    
-                    <button onClick={closeBookDetail} style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 10, background: 'none', cursor: 'pointer', border: 'none' }}>
-                        <X color="#333" className="w-6 h-6 md:w-7 md:h-7 hover:scale-110 transition-transform" />
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99990] flex items-center justify-center p-4">
+                <div className="flex flex-col md:flex-row relative no-scrollbar p-6 md:p-8 gap-6 md:gap-8 animate-in zoom-in-95 duration-200 bg-[#F8F5FF] w-full max-w-[850px] max-h-[90vh] overflow-y-auto rounded-[24px] shadow-2xl">
+                    <button onClick={closeBookDetail} className="absolute top-4 right-4 z-10 hover:scale-110 transition-transform">
+                        <X color="#333" className="w-6 h-6 md:w-7 md:h-7" />
                     </button>
 
                     <div className="flex flex-col items-center w-full max-w-[200px] md:max-w-[280px] shrink-0 mx-auto">
-                        <img src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} alt={selectedBook.judul} style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', borderRadius: '16px', boxShadow: '0 12px 24px rgba(0,0,0,0.15)' }} />
+                        <img src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} alt={selectedBook.judul} className="w-full aspect-[2/3] object-cover rounded-[16px] shadow-xl" />
                         <div className="flex gap-1 md:gap-2 mt-4 md:mt-5">
                             {[1, 2, 3, 4, 5].map((star) => (
                                 <Star key={star} className="w-5 h-5 md:w-7 md:h-7" fill="#FFD700" color="#FFD700" />
@@ -175,8 +226,8 @@ function ExploreContent() {
                         <p className="text-[16px] md:text-[20px] font-medium text-[#555] mb-3 md:mb-4">{selectedBook.penulis}</p>
 
                         <div className="flex flex-wrap items-center gap-2 mb-3 md:mb-4">
-                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: stockCount > 0 ? '#00A651' : '#E11D48' }} />
-                            <span className="text-[13px] md:text-[15px] font-bold" style={{ color: stockCount > 0 ? '#00A651' : '#E11D48' }}>
+                            <div className={`w-3 h-3 rounded-full ${stockCount > 0 ? 'bg-[#00A651]' : 'bg-[#E11D48]'}`} />
+                            <span className={`text-[13px] md:text-[15px] font-bold ${stockCount > 0 ? 'text-[#00A651]' : 'text-[#E11D48]'}`}>
                                 {stockCount > 0 ? 'Available for Loan' : 'Out of Stock'}
                             </span>
                             <span className="text-[#A1A1AA] mx-1 hidden sm:block">|</span>
@@ -198,22 +249,115 @@ function ExploreContent() {
 
                         <div className="mt-auto flex flex-col gap-3">
                             <button
-                                onClick={handleReserve}
+                                onClick={handleReserveClick}
                                 disabled={stockCount <= 0}
-                                className="w-full py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.02] active:scale-95"
+                                className="w-full py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.02] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
                                 style={{
-                                    background: 'linear-gradient(90deg, #C3CFF7 0%, #101464 100%)',
+                                    background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
                                     cursor: stockCount > 0 ? 'pointer' : 'not-allowed', 
                                     opacity: stockCount > 0 ? 1 : 0.6,
                                 }}
                             >
-                                Booking Book
+                                {isLoggedIn ? 'Book This Title' : 'Sign In to Book'}
                             </button>
                             <p className="text-center text-[12px] md:text-[14px] text-[#555] mt-1 font-medium">
                                 *Maximum loan period is 7 working days
                             </p>
                         </div>
                     </div>
+                </div>
+            </div>
+        );
+    };
+
+    // --- 2. MODAL TERMS & CONDITIONS ---
+    const renderTnCModal = () => {
+        if (!isTnCOpen) return null;
+        return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99995] flex items-center justify-center p-4">
+                <div className="bg-white rounded-[24px] p-6 md:p-8 w-full max-w-[500px] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center mb-6 border-b border-zinc-100 pb-4">
+                        <h3 className="text-[20px] md:text-[24px] font-extrabold text-[#111]">Terms & Conditions</h3>
+                        <button onClick={() => setIsTnCOpen(false)} className="hover:scale-110 transition-transform">
+                            <X color="#333" className="w-6 h-6" />
+                        </button>
+                    </div>
+
+                    <div className="text-[14px] md:text-[15px] text-zinc-600 space-y-4 mb-6 leading-relaxed">
+                        <p>By proceeding with this reservation, you agree to the following Lumenary Library rules:</p>
+                        <ul className="list-disc pl-5 space-y-2 font-medium">
+                            <li><b className="text-[#E11D48]">24-Hour Pickup Rule:</b> You must collect the physical book from the campus library counter within 24 hours. If not collected, the reservation will be automatically cancelled by the system.</li>
+                            <li><b className="text-[#161B85]">Maximum Loan Duration:</b> The maximum holding period for any borrowed book is 7 working days from the time of pickup.</li>
+                            <li><b className="text-[#161B85]">Penalties:</b> Failure to return the book on time will incur daily penalty charges and may restrict your account from future borrowings.</li>
+                        </ul>
+                    </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer mb-6 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                        <input 
+                            type="checkbox" 
+                            checked={agreedToTnC} 
+                            onChange={(e) => setAgreedToTnC(e.target.checked)}
+                            className="mt-1 w-5 h-5 accent-[#161B85] cursor-pointer"
+                        />
+                        <span className="text-[14px] font-bold text-[#111]">
+                            I have read, understood, and agree to abide by the Library Terms and Conditions.
+                        </span>
+                    </label>
+
+                    <button
+                        onClick={submitReservation}
+                        disabled={!agreedToTnC || isReserving}
+                        className="w-full py-4 rounded-xl text-[16px] font-extrabold text-white transition-all flex items-center justify-center gap-2"
+                        style={{
+                            background: (!agreedToTnC || isReserving) ? '#E4E4E7' : 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
+                            color: (!agreedToTnC || isReserving) ? '#A1A1AA' : '#fff',
+                            cursor: (!agreedToTnC || isReserving) ? 'not-allowed' : 'pointer',
+                        }}
+                    >
+                        {isReserving ? <Loader2 size={20} className="animate-spin" /> : <BookOpen size={20} />}
+                        {isReserving ? 'Processing...' : 'Confirm Reservation'}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
+    // --- 3. MODAL SUCCESS KODE BOOKING ---
+    const renderSuccessModal = () => {
+        if (!reservationSuccess) return null;
+        return (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+                <div className="bg-white rounded-[32px] p-8 w-full max-w-[450px] shadow-2xl flex flex-col items-center text-center animate-in zoom-in-90 duration-300">
+                    <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
+                        <CheckCircle2 size={40} />
+                    </div>
+                    
+                    <h3 className="text-[24px] font-extrabold text-[#111] mb-2">Reservation Successful!</h3>
+                    <p className="text-[15px] text-zinc-500 mb-6 font-medium">
+                        Your request for <b className="text-[#111]">"{reservationSuccess.judul}"</b> has been secured.
+                    </p>
+
+                    <div className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl p-6 mb-6">
+                        <p className="text-[12px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Your Booking Code</p>
+                        <p className="text-[40px] font-black text-[#161B85] tracking-widest leading-none">
+                            {reservationSuccess.kode}
+                        </p>
+                    </div>
+
+                    <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-4 rounded-xl text-left mb-8 border border-blue-100">
+                        <AlertCircle size={20} className="shrink-0 mt-0.5" />
+                        <p className="text-[13px] font-medium leading-relaxed">
+                            Please show this Booking Code to the librarian at the front desk within <b>24 hours</b> to claim your physical book.
+                        </p>
+                    </div>
+
+                    <button
+                        onClick={() => setReservationSuccess(null)}
+                        className="w-full py-4 rounded-xl text-[16px] font-extrabold text-white transition-all hover:-translate-y-0.5 shadow-lg"
+                        style={{ background: '#161B85' }}
+                    >
+                        Got it, Thanks!
+                    </button>
                 </div>
             </div>
         );
@@ -297,11 +441,16 @@ function ExploreContent() {
         </div>
     );
 
+    const isAnyModalOpen = isModalOpen || isTnCOpen || reservationSuccess !== null;
+
     if (isLoggedIn) {
         return (
             <>
                 {renderModal()}
-                <div className={`flex h-screen w-full bg-[#F8F8FF] font-['Plus_Jakarta_Sans',sans-serif] ${isModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
+                {renderTnCModal()}
+                {renderSuccessModal()}
+                
+                <div className={`flex h-screen w-full bg-[#F8F8FF] font-['Plus_Jakarta_Sans',sans-serif] ${isAnyModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
                     <aside className="w-[260px] bg-white border-r border-zinc-200 flex flex-col justify-between hidden md:flex">
                         <div>
                             <div className="flex items-center gap-3 px-8 py-8">
@@ -385,7 +534,9 @@ function ExploreContent() {
     return (
         <>
             {renderModal()}
-            <div className={`min-h-screen flex flex-col bg-zinc-50 ${isModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
+            {renderTnCModal()}
+            {renderSuccessModal()}
+            <div className={`min-h-screen flex flex-col bg-zinc-50 ${isAnyModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
                 <header className="w-full flex items-center justify-between gap-4 px-6 md:px-12 py-5 bg-white border-b border-zinc-200 sticky top-0 z-50 shadow-sm">
                     <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => router.push('/')}>
                         <img className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
@@ -421,7 +572,6 @@ function ExploreContent() {
     );
 }
 
-// 2. FUNGSI UTAMA (Di-export default, membungkus ExploreContent dengan Suspense)
 export default function ExplorePage() {
     return (
         <Suspense fallback={
