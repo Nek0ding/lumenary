@@ -61,7 +61,7 @@ function CollectionContent() {
         }
 
         try {
-            const res = await fetch('/api/buku/favorit', {
+            const res = await fetch('/api/user/favorit', {
                 method: 'GET',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -112,7 +112,7 @@ function CollectionContent() {
 
         setIsTogglingFavorite(true);
         try {
-            const res = await fetch('/api/buku/favorit', {
+            const res = await fetch('/api/user/favorit', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

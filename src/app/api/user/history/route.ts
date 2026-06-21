@@ -95,6 +95,7 @@ export async function GET(request: Request) {
                 tanggal_dikembalikan: pinjam.tanggal_dikembalikan,
                 kode_peminjaman: pinjam.kode_peminjaman,
                 status: pinjam.status,
+                created_at: pinjam.created_at,
                 // Map objek denda jika ada, ubah Decimal ke Number agar aman diserialisasi
                 denda: pinjam.denda ? {
                     id_denda: pinjam.denda.id_denda,

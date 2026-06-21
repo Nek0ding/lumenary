@@ -117,7 +117,7 @@ function ExploreContent() {
         const token = localStorage.getItem('lumenary_token');
         if (token) {
             try {
-                const res = await fetch(`/api/buku/favorit?id_buku=${book.id_buku}`, {
+                const res = await fetch(`/api/user/favorit?id_buku=${book.id_buku}`, {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -162,7 +162,7 @@ function ExploreContent() {
 
         setIsTogglingFavorite(true);
         try {
-            const res = await fetch('/api/buku/favorit', {
+            const res = await fetch('/api/user/favorit', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
