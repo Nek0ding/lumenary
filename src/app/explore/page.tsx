@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { Search, Loader2, BookOpen, Settings, LogOut, X, Star, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Search, Loader2, BookOpen, Settings, LogOut, X, Star, CheckCircle2, AlertCircle, Heart } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
@@ -45,6 +45,10 @@ function ExploreContent() {
     const [agreedToTnC, setAgreedToTnC] = useState(false);
     const [isReserving, setIsReserving] = useState(false);
     const [reservationSuccess, setReservationSuccess] = useState<{kode: string, judul: string} | null>(null);
+
+    // --- FAVORITE STATES ---
+    const [isFavorited, setIsFavorited] = useState(false);
+    const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
 
     // --- FETCH BUKU ---
     const fetchBooks = async (query = '') => {
@@ -103,11 +107,28 @@ function ExploreContent() {
         router.push('/login');
     };
 
-    // --- MODAL TRIGGERS ---
-    const openBookDetail = (book: Buku) => {
+    // --- MODAL TRIGGERS & FAVORITE CHECK ---
+    const openBookDetail = async (book: Buku) => {
         setSelectedBook(book);
         setIsExpanded(false);
         setIsModalOpen(true);
+        setIsFavorited(false);
+
+        const token = localStorage.getItem('lumenary_token');
+        if (token) {
+            try {
+                const res = await fetch(`/api/buku/favorit?id_buku=${book.id_buku}`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    setIsFavorited(data.isFavorited);
+                }
+            } catch (err) {
+                console.error("Gagal memuat status favorit awal", err);
+            }
+        }
     };
 
     const closeBookDetail = () => {
@@ -115,6 +136,7 @@ function ExploreContent() {
         setTimeout(() => {
             setSelectedBook(null);
             setIsExpanded(false);
+            setIsFavorited(false);
         }, 300);
     };
 
@@ -125,6 +147,39 @@ function ExploreContent() {
         } else {
             setIsTnCOpen(true);
             setAgreedToTnC(false);
+        }
+    };
+
+    // --- TOGGLE FAVORITE HANDLER ---
+    const handleToggleFavorite = async () => {
+        if (!selectedBook) return;
+        const token = localStorage.getItem('lumenary_token');
+        if (!token) {
+            alert("Silakan Sign In terlebih dahulu untuk menyimpan buku favorit.");
+            router.push('/login');
+            return;
+        }
+
+        setIsTogglingFavorite(true);
+        try {
+            const res = await fetch('/api/buku/favorit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id_buku: Number(selectedBook.id_buku) })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setIsFavorited(data.isFavorited);
+            } else {
+                alert(data.message || "Gagal memperbarui status favorit");
+            }
+        } catch (err) {
+            alert("Terjadi masalah jaringan.");
+        } finally {
+            setIsTogglingFavorite(false);
         }
     };
 
@@ -145,16 +200,14 @@ function ExploreContent() {
             const data = await res.json();
 
             if (res.ok && data.success) {
-                // Sukses
                 setIsTnCOpen(false);
                 closeBookDetail(); 
                 setReservationSuccess({
                     kode: data.data.kode_peminjaman,
                     judul: selectedBook.judul
                 });
-                fetchBooks(searchQuery); // Refresh stok katalog
+                fetchBooks(searchQuery); 
             } else {
-                // Gagal
                 if (data.code === 'INCOMPLETE_PROFILE') {
                     alert("Attention: Please complete your active residential address and phone number in Settings before borrowing a book!");
                     router.push('/settings');
@@ -169,10 +222,9 @@ function ExploreContent() {
         }
     };
 
-    // --- RENDER HELPERS ---
     const renderSynopsis = () => {
         if (!selectedBook) return null;
-        const text = selectedBook.sinopsis || "Synopsis is not available for this book.";
+        const text = selectedBook.sinopsis || "Sinopsis tidak tersedia untuk buku ini.";
         const maxLength = 150;
 
         if (text.length <= maxLength) return text;
@@ -181,7 +233,7 @@ function ExploreContent() {
             return (
                 <>
                     {text}
-                    <span onClick={() => setIsExpanded(false)} className="cursor-pointer font-extrabold ml-1 text-[#161B85]">
+                    <span onClick={() => setIsExpanded(false)} className="cursor-pointer font-extrabold ml-1 text-[#161B85] hover:underline">
                         (show less)
                     </span>
                 </>
@@ -190,7 +242,7 @@ function ExploreContent() {
         return (
             <>
                 {text.substring(0, maxLength)}
-                <span onClick={() => setIsExpanded(true)} className="cursor-pointer font-extrabold ml-1 text-[#111]">
+                <span onClick={() => setIsExpanded(true)} className="cursor-pointer font-extrabold ml-1 text-[#111] hover:underline">
                     ...read more
                 </span>
             </>
@@ -203,8 +255,8 @@ function ExploreContent() {
         const stockCount = selectedBook.stok ?? selectedBook.stok_tersedia ?? 0;
 
         return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99990] flex items-center justify-center p-4">
-                <div className="flex flex-col md:flex-row relative no-scrollbar p-6 md:p-8 gap-6 md:gap-8 animate-in zoom-in-95 duration-200 bg-[#F8F5FF] w-full max-w-[850px] max-h-[90vh] overflow-y-auto rounded-[24px] shadow-2xl">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99990] flex items-center justify-center p-4 transition-opacity duration-300">
+                <div className="flex flex-col md:flex-row relative no-scrollbar p-6 md:p-8 gap-6 md:gap-8 bg-[#F8F5FF] w-full max-w-[850px] max-h-[90vh] overflow-y-auto rounded-[24px] shadow-2xl transform transition-transform duration-300 scale-100">
                     <button onClick={closeBookDetail} className="absolute top-4 right-4 z-10 hover:scale-110 transition-transform">
                         <X color="#333" className="w-6 h-6 md:w-7 md:h-7" />
                     </button>
@@ -248,18 +300,35 @@ function ExploreContent() {
                         </p>
 
                         <div className="mt-auto flex flex-col gap-3">
-                            <button
-                                onClick={handleReserveClick}
-                                disabled={stockCount <= 0}
-                                className="w-full py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.02] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
-                                style={{
-                                    background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
-                                    cursor: stockCount > 0 ? 'pointer' : 'not-allowed', 
-                                    opacity: stockCount > 0 ? 1 : 0.6,
-                                }}
-                            >
-                                {isLoggedIn ? 'Book This Title' : 'Sign In to Book'}
-                            </button>
+                            <div className="flex gap-3 w-full">
+                                {isLoggedIn && (
+                                    <button
+                                        onClick={handleToggleFavorite}
+                                        disabled={isTogglingFavorite}
+                                        className={`px-4 py-3 md:py-4 rounded-xl border font-bold text-[14px] md:text-[16px] flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                                            ${isFavorited 
+                                                ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' 
+                                                : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                                            }`}
+                                    >
+                                        <Heart size={20} className={isFavorited ? "fill-red-600 text-red-600" : "text-zinc-500"} />
+                                        <span className="hidden sm:inline">{isFavorited ? 'Unfavorite' : 'Favorite'}</span>
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={handleReserveClick}
+                                    disabled={stockCount <= 0}
+                                    className="flex-1 py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.01] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
+                                    style={{
+                                        background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
+                                        cursor: stockCount > 0 ? 'pointer' : 'not-allowed', 
+                                        opacity: stockCount > 0 ? 1 : 0.6,
+                                    }}
+                                >
+                                    {isLoggedIn ? 'Book This Title' : 'Sign In to Book'}
+                                </button>
+                            </div>
                             <p className="text-center text-[12px] md:text-[14px] text-[#555] mt-1 font-medium">
                                 *Maximum loan period is 7 working days
                             </p>
@@ -274,8 +343,8 @@ function ExploreContent() {
     const renderTnCModal = () => {
         if (!isTnCOpen) return null;
         return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99995] flex items-center justify-center p-4">
-                <div className="bg-white rounded-[24px] p-6 md:p-8 w-full max-w-[500px] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99995] flex items-center justify-center p-4 transition-opacity duration-300">
+                <div className="bg-white rounded-[24px] p-6 md:p-8 w-full max-w-[500px] shadow-2xl flex flex-col transform transition-transform duration-300 scale-100">
                     <div className="flex justify-between items-center mb-6 border-b border-zinc-100 pb-4">
                         <h3 className="text-[20px] md:text-[24px] font-extrabold text-[#111]">Terms & Conditions</h3>
                         <button onClick={() => setIsTnCOpen(false)} className="hover:scale-110 transition-transform">
@@ -326,8 +395,8 @@ function ExploreContent() {
     const renderSuccessModal = () => {
         if (!reservationSuccess) return null;
         return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
-                <div className="bg-white rounded-[32px] p-8 w-full max-w-[450px] shadow-2xl flex flex-col items-center text-center animate-in zoom-in-90 duration-300">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4 transition-opacity duration-300">
+                <div className="bg-white rounded-[32px] p-8 w-full max-w-[450px] shadow-2xl flex flex-col items-center text-center transform transition-transform duration-300 scale-100">
                     <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
                         <CheckCircle2 size={40} />
                     </div>
@@ -372,7 +441,7 @@ function ExploreContent() {
     }
 
     const renderPageContent = () => (
-        <div className="w-full max-w-[1000px] mx-auto animate-in fade-in duration-300">
+        <div className="w-full max-w-[1000px] mx-auto transition-opacity duration-500 opacity-100">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 mt-4">
                 <div>
                     <h1 className="text-[28px] md:text-[32px] font-extrabold text-black leading-tight">
@@ -382,6 +451,12 @@ function ExploreContent() {
                         Manage book lists, active reservations, and track your reading preferences in one place.
                     </p>
                 </div>
+                
+                {isLoggedIn && (
+                    <Link href="/dashboard/collection" className="bg-[#161B85] hover:bg-[#0E1154] text-white px-6 py-2.5 rounded-full text-[14px] font-bold transition-colors shadow-sm whitespace-nowrap text-center">
+                        My Collection
+                    </Link>
+                )}
             </div>
 
             {!isLoggedIn && (
@@ -441,6 +516,7 @@ function ExploreContent() {
         </div>
     );
 
+    // FIX: Gunakan isAnyModalOpen untuk background blur di Public Layout juga!
     const isAnyModalOpen = isModalOpen || isTnCOpen || reservationSuccess !== null;
 
     if (isLoggedIn) {
@@ -531,12 +607,16 @@ function ExploreContent() {
         );
     }
 
+    // ==========================================
+    // RENDER: JIKA USER BELUM LOGIN (PUBLIC LAYOUT)
+    // ==========================================
     return (
         <>
             {renderModal()}
             {renderTnCModal()}
             {renderSuccessModal()}
             <div className={`min-h-screen flex flex-col bg-zinc-50 ${isAnyModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
+                {/* ====== NAVBAR DARI LANDING PAGE ====== */}
                 <header className="w-full flex items-center justify-between gap-4 px-6 md:px-12 py-5 bg-white border-b border-zinc-200 sticky top-0 z-50 shadow-sm">
                     <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => router.push('/')}>
                         <img className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
