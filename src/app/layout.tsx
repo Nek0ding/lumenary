@@ -12,6 +12,9 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "Lumenary - Gunadarma Library",
   description: "The ultimate digital gateway to streamline your book borrowing experience.",
+  icons: {
+    icon: '/logo.png', // Akan otomatis mengambil logo.png dari folder public
+  },
 };
 
 export default function RootLayout({
