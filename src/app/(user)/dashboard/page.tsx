@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Star, X, Loader2, BookOpen, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Star, X, Loader2, BookOpen, CheckCircle2, AlertCircle, Heart } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Stats {
@@ -21,7 +21,6 @@ interface CurrentReadingItem {
     dueDate: string;
     status: string;
     isbn: string;
-    // Tambahan property untuk modal
     tanggal_pinjam?: string;
     denda?: number;
     kode_peminjaman?: string;
@@ -63,6 +62,10 @@ export default function DashboardPage() {
     const [agreedToTnC, setAgreedToTnC] = useState(false);
     const [isReserving, setIsReserving] = useState(false);
     const [reservationSuccess, setReservationSuccess] = useState<{kode: string, judul: string} | null>(null);
+
+    // State Favorit (Untuk Recommended Book Modal)
+    const [isFavorited, setIsFavorited] = useState(false);
+    const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
 
     const fetchDashboardData = async () => {
         const token = localStorage.getItem('lumenary_token');
@@ -113,7 +116,7 @@ export default function DashboardPage() {
     }, [router]);
 
     // ==========================================
-    // HELPER FUNCTIONS
+    // HELPER FUNCTIONS & TRIGGERS
     // ==========================================
     const formatDate = (dateString: string | undefined) => {
         if (!dateString) return '-';
@@ -163,6 +166,64 @@ export default function DashboardPage() {
         return 'bg-zinc-100 text-zinc-700';
     };
 
+    const openRecommendedBookDetail = async (book: RecommendedItem) => {
+        setSelectedBook({ 
+            ...book, 
+            cover_buku: book.cover, 
+            judul: book.title, 
+            penulis: book.author, 
+            kategori: { nama_kategori: book.category } 
+        });
+        setIsExpanded(false);
+        setIsFavorited(false);
+
+        // Fetch status favorit terbaru
+        const token = localStorage.getItem('lumenary_token');
+        if (token) {
+            try {
+                const res = await fetch(`/api/buku/favorit?id_buku=${book.id}`, {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    setIsFavorited(data.isFavorited);
+                }
+            } catch (err) {
+                console.error("Gagal memuat status favorit awal", err);
+            }
+        }
+    };
+
+    const handleToggleFavorite = async () => {
+        if (!selectedBook) return;
+        const token = localStorage.getItem('lumenary_token');
+        if (!token) return;
+
+        setIsTogglingFavorite(true);
+        try {
+            const res = await fetch('/api/buku/favorit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ id_buku: Number(selectedBook.id) })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setIsFavorited(data.isFavorited);
+                fetchDashboardData(); // Refresh list wishlist di stat dashboard
+            } else {
+                alert(data.message || "Gagal memperbarui status favorit");
+            }
+        } catch (err) {
+            alert("Terjadi masalah jaringan.");
+        } finally {
+            setIsTogglingFavorite(false);
+        }
+    };
+
     const renderSynopsis = () => {
         if (!selectedBook) return null;
         const text = selectedBook.sinopsis || "Synopsis is not available for this book.";
@@ -203,7 +264,7 @@ export default function DashboardPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ id_buku: Number(selectedBook.id) }) // ID dari RecommendedItem
+                body: JSON.stringify({ id_buku: Number(selectedBook.id) })
             });
             const data = await res.json();
 
@@ -357,7 +418,7 @@ export default function DashboardPage() {
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99990] flex items-center justify-center p-4">
                     <div className="flex flex-col md:flex-row relative no-scrollbar p-6 md:p-8 gap-6 md:gap-8 bg-[#F8F5FF] w-full max-w-[850px] max-h-[90vh] overflow-y-auto rounded-[24px] shadow-2xl animate-in zoom-in-95 duration-200">
                         
-                        <button onClick={() => { setSelectedBook(null); setIsExpanded(false); }} className="absolute top-4 right-4 z-10 hover:scale-110 transition-transform">
+                        <button onClick={() => { setSelectedBook(null); setIsExpanded(false); setIsFavorited(false); }} className="absolute top-4 right-4 z-10 hover:scale-110 transition-transform">
                             <X color="#333" className="w-6 h-6 md:w-7 md:h-7" />
                         </button>
 
@@ -400,18 +461,34 @@ export default function DashboardPage() {
                             </p>
 
                             <div className="mt-auto flex flex-col gap-3">
-                                <button
-                                    onClick={() => { setIsTnCOpen(true); setAgreedToTnC(false); }}
-                                    disabled={selectedBook.stok <= 0}
-                                    className="w-full py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.02] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
-                                    style={{
-                                        background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
-                                        cursor: selectedBook.stok > 0 ? 'pointer' : 'not-allowed', 
-                                        opacity: selectedBook.stok > 0 ? 1 : 0.6,
-                                    }}
-                                >
-                                    Book This Title
-                                </button>
+                                {/* PEMBARUAN: Ditambahkan flex container dengan tombol Favorit */}
+                                <div className="flex gap-3 w-full">
+                                    <button
+                                        onClick={handleToggleFavorite}
+                                        disabled={isTogglingFavorite}
+                                        className={`px-4 py-3 md:py-4 rounded-xl border font-bold text-[14px] md:text-[16px] flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                                            ${isFavorited 
+                                                ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' 
+                                                : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
+                                            }`}
+                                    >
+                                        <Heart size={20} className={isFavorited ? "fill-red-600 text-red-600" : "text-zinc-500"} />
+                                        <span className="hidden sm:inline">{isFavorited ? 'Unfavorite' : 'Favorite'}</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => { setIsTnCOpen(true); setAgreedToTnC(false); }}
+                                        disabled={selectedBook.stok <= 0}
+                                        className="flex-1 py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.02] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
+                                        style={{
+                                            background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
+                                            cursor: selectedBook.stok > 0 ? 'pointer' : 'not-allowed', 
+                                            opacity: selectedBook.stok > 0 ? 1 : 0.6,
+                                        }}
+                                    >
+                                        Book This Title
+                                    </button>
+                                </div>
                                 <p className="text-center text-[12px] md:text-[14px] text-[#555] mt-1 font-medium">
                                     *Maximum loan period is 7 working days
                                 </p>
@@ -555,7 +632,7 @@ export default function DashboardPage() {
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             {recommended.map((book) => (
-                                <div key={book.id} onClick={() => setSelectedBook({ ...book, cover_buku: book.cover, judul: book.title, penulis: book.author, kategori: { nama_kategori: book.category } })} className="flex flex-col gap-2 cursor-pointer group">
+                                <div key={book.id} onClick={() => openRecommendedBookDetail(book)} className="flex flex-col gap-2 cursor-pointer group">
                                     <div className="w-full aspect-[2/3] bg-zinc-200 rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-shadow border border-zinc-100">
                                         <img src={book.cover || "/placeholder-cover.jpg"} alt={book.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                                     </div>
