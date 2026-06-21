@@ -296,7 +296,7 @@ export default function DashboardPage() {
         const token = localStorage.getItem('lumenary_token');
         if (token) {
             try {
-                const res = await fetch(`/api/buku/favorit?id_buku=${book.id}`, {
+                const res = await fetch(`/api/user/favorit?id_buku=${book.id}`, {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -315,7 +315,7 @@ export default function DashboardPage() {
 
         setIsTogglingFavorite(true);
         try {
-            const res = await fetch('/api/buku/favorit', {
+            const res = await fetch('/api/user/favorit', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ id_buku: Number(selectedBook.id) })
