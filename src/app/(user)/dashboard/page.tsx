@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Star, X, Loader2, BookOpen, CheckCircle2, AlertCircle, Heart } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Star, X, Loader2, BookOpen, CheckCircle2, AlertCircle, Heart, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 interface Stats {
@@ -38,6 +38,88 @@ interface RecommendedItem {
     sinopsis: string;
 }
 
+type ToastType = 'success' | 'error';
+interface Toast {
+    id: number;
+    message: string;
+    type: ToastType;
+}
+
+let toastCounter = 0;
+
+function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: number) => void }) {
+    return (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999999] flex flex-col gap-2 items-center pointer-events-none">
+            {toasts.map((t) => (
+                <div
+                    key={t.id}
+                    className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-white text-[14px] font-semibold pointer-events-auto animate-in slide-in-from-bottom-4 duration-300
+                        ${t.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}
+                >
+                    {t.type === 'success'
+                        ? <CheckCircle2 size={18} className="shrink-0" />
+                        : <AlertCircle size={18} className="shrink-0" />
+                    }
+                    {t.message}
+                    <button onClick={() => onRemove(t.id)} className="ml-1 opacity-70 hover:opacity-100">
+                        <X size={14} />
+                    </button>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function ConfirmCancelDialog({
+    bookTitle,
+    onConfirm,
+    onClose,
+    isLoading,
+}: {
+    bookTitle: string;
+    onConfirm: () => void;
+    onClose: () => void;
+    isLoading: boolean;
+}) {
+    return (
+        <div className="fixed inset-0 z-[999995] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[24px] w-full max-w-[420px] shadow-2xl p-8 flex flex-col gap-6 animate-in zoom-in-95 duration-200">
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
+                        <AlertTriangle size={32} className="text-red-500" />
+                    </div>
+                    <div>
+                        <h3 className="text-[20px] font-extrabold text-black mb-2">Cancel Reservation?</h3>
+                        <p className="text-[14px] text-zinc-500 font-medium leading-relaxed">
+                            Are you sure you want to cancel your reservation for{' '}
+                            <span className="font-bold text-black">"{bookTitle}"</span>?
+                            <br /><br />
+                            The book will be returned to stock and this action <span className="text-red-600 font-bold">cannot be undone</span>.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex gap-3">
+                    <button
+                        onClick={onClose}
+                        disabled={isLoading}
+                        className="flex-1 py-3 rounded-xl border-2 border-zinc-200 text-zinc-700 font-bold text-[15px] hover:bg-zinc-50 transition-all disabled:opacity-50"
+                    >
+                        Keep It
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        disabled={isLoading}
+                        className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[15px] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {isLoading ? <Loader2 size={18} className="animate-spin" /> : null}
+                        {isLoading ? 'Cancelling...' : 'Yes, Cancel'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function DashboardPage() {
     const router = useRouter();
     const [userName, setUserName] = useState('User');
@@ -52,22 +134,34 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // State Pengaturan Modal
-    const [selectedBook, setSelectedBook] = useState<any>(null); // Modal Booking (dari Recommended)
-    const [selectedLoan, setSelectedLoan] = useState<CurrentReadingItem | null>(null); // Modal Peminjaman (dari Current Reading)
+    const [selectedBook, setSelectedBook] = useState<any>(null);
+    const [selectedLoan, setSelectedLoan] = useState<CurrentReadingItem | null>(null);
     const [isExpanded, setIsExpanded] = useState(false);
 
-    // State Reservasi
     const [isTnCOpen, setIsTnCOpen] = useState(false);
     const [agreedToTnC, setAgreedToTnC] = useState(false);
     const [isReserving, setIsReserving] = useState(false);
-    const [reservationSuccess, setReservationSuccess] = useState<{kode: string, judul: string} | null>(null);
+    const [reservationSuccess, setReservationSuccess] = useState<{ kode: string; judul: string } | null>(null);
 
-    // State Favorit (Untuk Recommended Book Modal)
     const [isFavorited, setIsFavorited] = useState(false);
     const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
 
-    const fetchDashboardData = async () => {
+    const [cancelTarget, setCancelTarget] = useState<CurrentReadingItem | null>(null);
+    const [isCancelling, setIsCancelling] = useState(false);
+
+    const [toasts, setToasts] = useState<Toast[]>([]);
+
+    const showToast = useCallback((message: string, type: ToastType = 'success') => {
+        const id = ++toastCounter;
+        setToasts((prev) => [...prev, { id, message, type }]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+    }, []);
+
+    const removeToast = useCallback((id: number) => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, []);
+
+    const fetchDashboardData = useCallback(async () => {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
 
@@ -109,31 +203,65 @@ export default function DashboardPage() {
             setLoading(false);
             router.replace('/login');
         }
-    };
+    }, [router]);
 
     useEffect(() => {
         fetchDashboardData();
-    }, [router]);
+    }, [fetchDashboardData]);
 
-    // ==========================================
-    // HELPER FUNCTIONS & TRIGGERS
-    // ==========================================
-    const formatDate = (dateString: string | undefined) => {
+    const handleConfirmCancel = async () => {
+        if (!cancelTarget) return;
+        setIsCancelling(true);
+
+        try {
+            const token = localStorage.getItem('lumenary_token');
+            const res = await fetch(`/api/peminjaman/${cancelTarget.id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ action: 'cancel' }),
+            });
+
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                setCancelTarget(null);
+                setSelectedLoan(null);
+                showToast('Reservation successfully cancelled.', 'success');
+                fetchDashboardData();
+            } else {
+                setCancelTarget(null);
+                showToast(data.message || 'Failed to cancel reservation.', 'error');
+            }
+        } catch {
+            setCancelTarget(null);
+            showToast('Network error. Please try again.', 'error');
+        } finally {
+            setIsCancelling(false);
+        }
+    };
+
+    const formatDate = (dateString: string | undefined | null) => {
         if (!dateString) return '-';
         return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
+            month: 'short', day: 'numeric', year: 'numeric'
         });
     };
 
-    const formatRupiah = (amount: number) => {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount);
+    // Fungsi Pembantu H+1 untuk Pickup Deadline
+    const getPickupDeadline = (dateString: string | undefined | null) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        date.setDate(date.getDate() + 1); // Tambah 1 hari
+        return formatDate(date.toISOString());
     };
+
+    const formatRupiah = (amount: number) =>
+        new Intl.NumberFormat('id-ID', {
+            style: 'currency', currency: 'IDR', minimumFractionDigits: 0
+        }).format(amount);
 
     const getStatusInfo = (dueDateString: string, status: string) => {
         if (status === 'dikembalikan') return { text: 'Returned', color: 'text-emerald-600 bg-emerald-50' };
@@ -144,17 +272,11 @@ export default function DashboardPage() {
         const today = new Date();
         due.setHours(0, 0, 0, 0);
         today.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 
-        const diffTime = due.getTime() - today.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (status === 'terlambat' || diffDays < 0) {
-            return { text: `Overdue (${Math.abs(diffDays)} days)`, color: 'text-red-600 bg-red-50' };
-        } else if (diffDays === 0) {
-            return { text: 'Due Today', color: 'text-orange-600 bg-orange-50' };
-        } else {
-            return { text: `Active (${diffDays} days left)`, color: 'text-[#161B85] bg-indigo-50' };
-        }
+        if (status === 'terlambat' || diffDays < 0) return { text: `Overdue (${Math.abs(diffDays)} days)`, color: 'text-red-600 bg-red-50' };
+        if (diffDays === 0) return { text: 'Due Today', color: 'text-orange-600 bg-orange-50' };
+        return { text: `Active (${diffDays} days left)`, color: 'text-[#161B85] bg-indigo-50' };
     };
 
     const getCategoryBadge = (category: string | undefined) => {
@@ -167,17 +289,10 @@ export default function DashboardPage() {
     };
 
     const openRecommendedBookDetail = async (book: RecommendedItem) => {
-        setSelectedBook({ 
-            ...book, 
-            cover_buku: book.cover, 
-            judul: book.title, 
-            penulis: book.author, 
-            kategori: { nama_kategori: book.category } 
-        });
+        setSelectedBook({ ...book, cover_buku: book.cover, judul: book.title, penulis: book.author, kategori: { nama_kategori: book.category } });
         setIsExpanded(false);
         setIsFavorited(false);
 
-        // Fetch status favorit terbaru
         const token = localStorage.getItem('lumenary_token');
         if (token) {
             try {
@@ -186,9 +301,7 @@ export default function DashboardPage() {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
-                if (res.ok && data.success) {
-                    setIsFavorited(data.isFavorited);
-                }
+                if (res.ok && data.success) setIsFavorited(data.isFavorited);
             } catch (err) {
                 console.error("Gagal memuat status favorit awal", err);
             }
@@ -204,21 +317,18 @@ export default function DashboardPage() {
         try {
             const res = await fetch('/api/buku/favorit', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ id_buku: Number(selectedBook.id) })
             });
             const data = await res.json();
             if (res.ok && data.success) {
                 setIsFavorited(data.isFavorited);
-                fetchDashboardData(); // Refresh list wishlist di stat dashboard
+                fetchDashboardData();
             } else {
-                alert(data.message || "Gagal memperbarui status favorit");
+                showToast(data.message || "Failed to update favourite.", 'error');
             }
-        } catch (err) {
-            alert("Terjadi masalah jaringan.");
+        } catch {
+            showToast("Network error.", 'error');
         } finally {
             setIsTogglingFavorite(false);
         }
@@ -228,31 +338,13 @@ export default function DashboardPage() {
         if (!selectedBook) return null;
         const text = selectedBook.sinopsis || "Synopsis is not available for this book.";
         const maxLength = 150;
-
         if (text.length <= maxLength) return text;
         if (isExpanded) {
-            return (
-                <>
-                    {text}
-                    <span onClick={() => setIsExpanded(false)} style={{ cursor: 'pointer', fontWeight: '800', marginLeft: '6px', color: '#6B21A8' }}>
-                        (show less)
-                    </span>
-                </>
-            );
+            return (<>{text}<span onClick={() => setIsExpanded(false)} style={{ cursor: 'pointer', fontWeight: '800', marginLeft: '6px', color: '#6B21A8' }}>(show less)</span></>);
         }
-        return (
-            <>
-                {text.substring(0, maxLength)}
-                <span onClick={() => setIsExpanded(true)} style={{ cursor: 'pointer', fontWeight: '800', color: '#111' }}>
-                    ...read more
-                </span>
-            </>
-        );
+        return (<>{text.substring(0, maxLength)}<span onClick={() => setIsExpanded(true)} style={{ cursor: 'pointer', fontWeight: '800', color: '#111' }}>...read more</span></>);
     };
 
-    // ==========================================
-    // API RESERVASI
-    // ==========================================
     const submitReservation = async () => {
         if (!selectedBook || !agreedToTnC) return;
         setIsReserving(true);
@@ -260,40 +352,31 @@ export default function DashboardPage() {
             const token = localStorage.getItem('lumenary_token');
             const res = await fetch('/api/peminjaman', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ id_buku: Number(selectedBook.id) })
             });
             const data = await res.json();
 
             if (res.ok && data.success) {
                 setIsTnCOpen(false);
-                setSelectedBook(null); 
-                setReservationSuccess({
-                    kode: data.data.kode_peminjaman,
-                    judul: selectedBook.judul
-                });
-                fetchDashboardData(); // Refresh Data Dashboard (stok berkurang, current reading nambah)
+                setSelectedBook(null);
+                setReservationSuccess({ kode: data.data.kode_peminjaman, judul: selectedBook.judul });
+                fetchDashboardData();
             } else {
                 if (data.code === 'INCOMPLETE_PROFILE') {
-                    alert("Attention: Please complete your active residential address and phone number in Settings before borrowing a book!");
+                    showToast("Please complete your profile before borrowing.", 'error');
                     router.push('/settings');
                 } else {
-                    alert(`Failed: ${data.message}`);
+                    showToast(data.message || 'Reservation failed.', 'error');
                 }
             }
-        } catch(e) {
-            alert("An error occurred connecting to the server.");
+        } catch {
+            showToast("An error occurred connecting to the server.", 'error');
         } finally {
             setIsReserving(false);
         }
     };
 
-    // ==========================================
-    // RENDER: MODAL TERMS & CONDITIONS
-    // ==========================================
     const renderTnCModal = () => {
         if (!isTnCOpen) return null;
         return (
@@ -305,7 +388,6 @@ export default function DashboardPage() {
                             <X color="#333" className="w-6 h-6" />
                         </button>
                     </div>
-
                     <div className="text-[14px] md:text-[15px] text-zinc-600 space-y-4 mb-6 leading-relaxed">
                         <p>By proceeding with this reservation, you agree to the following Lumenary Library rules:</p>
                         <ul className="list-disc pl-5 space-y-2 font-medium">
@@ -314,19 +396,10 @@ export default function DashboardPage() {
                             <li><b className="text-[#161B85]">Penalties:</b> Failure to return the book on time will incur daily penalty charges and may restrict your account from future borrowings.</li>
                         </ul>
                     </div>
-
                     <label className="flex items-start gap-3 cursor-pointer mb-6 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                        <input 
-                            type="checkbox" 
-                            checked={agreedToTnC} 
-                            onChange={(e) => setAgreedToTnC(e.target.checked)}
-                            className="mt-1 w-5 h-5 accent-[#161B85] cursor-pointer"
-                        />
-                        <span className="text-[14px] font-bold text-[#111]">
-                            I have read, understood, and agree to abide by the Library Terms and Conditions.
-                        </span>
+                        <input type="checkbox" checked={agreedToTnC} onChange={(e) => setAgreedToTnC(e.target.checked)} className="mt-1 w-5 h-5 accent-[#161B85] cursor-pointer" />
+                        <span className="text-[14px] font-bold text-[#111]">I have read, understood, and agree to abide by the Library Terms and Conditions.</span>
                     </label>
-
                     <button
                         onClick={submitReservation}
                         disabled={!agreedToTnC || isReserving}
@@ -345,9 +418,6 @@ export default function DashboardPage() {
         );
     };
 
-    // ==========================================
-    // RENDER: MODAL SUCCESS KODE BOOKING
-    // ==========================================
     const renderSuccessModal = () => {
         if (!reservationSuccess) return null;
         return (
@@ -356,26 +426,20 @@ export default function DashboardPage() {
                     <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
                         <CheckCircle2 size={40} />
                     </div>
-                    
                     <h3 className="text-[24px] font-extrabold text-[#111] mb-2">Reservation Successful!</h3>
                     <p className="text-[15px] text-zinc-500 mb-6 font-medium">
                         Your request for <b className="text-[#111]">"{reservationSuccess.judul}"</b> has been secured.
                     </p>
-
                     <div className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl p-6 mb-6">
                         <p className="text-[12px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Your Booking Code</p>
-                        <p className="text-[40px] font-black text-[#161B85] tracking-widest leading-none">
-                            {reservationSuccess.kode}
-                        </p>
+                        <p className="text-[40px] font-black text-[#161B85] tracking-widest leading-none">{reservationSuccess.kode}</p>
                     </div>
-
                     <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-4 rounded-xl text-left mb-8 border border-blue-100">
                         <AlertCircle size={20} className="shrink-0 mt-0.5" />
                         <p className="text-[13px] font-medium leading-relaxed">
                             Please show this Booking Code to the librarian at the front desk within <b>24 hours</b> to claim your physical book.
                         </p>
                     </div>
-
                     <button
                         onClick={() => setReservationSuccess(null)}
                         className="w-full py-4 rounded-xl text-[16px] font-extrabold text-white transition-all hover:-translate-y-0.5 shadow-lg"
@@ -388,17 +452,13 @@ export default function DashboardPage() {
         );
     };
 
-    // ==========================================
-    // PENGKONDISIAN LOADING & ERROR UTAMA
-    // ==========================================
-    if (loading) {
-        return (
-            <div className="flex h-[70vh] w-full text-black items-center justify-center">
-                <Loader2 className="w-8 h-8 text-[#A347FF] animate-spin" />
-                <span className="ml-3 font-medium text-zinc-600">Loading Dashboard...</span>
-            </div>
-        );
-    } 
+    if (loading) return (
+        <div className="flex h-[70vh] w-full text-black items-center justify-center">
+            <Loader2 className="w-8 h-8 text-[#A347FF] animate-spin" />
+            <span className="ml-3 font-medium text-zinc-600">Loading Dashboard...</span>
+        </div>
+    );
+
     if (error) return (
         <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-2 text-red-500 font-semibold">
             <p>⚠️ {error}</p>
@@ -406,10 +466,21 @@ export default function DashboardPage() {
         </div>
     );
 
-    const isAnyModalOpen = selectedBook !== null || selectedLoan !== null || isTnCOpen || reservationSuccess !== null;
+    const isAnyModalOpen = selectedBook !== null || selectedLoan !== null || isTnCOpen || reservationSuccess !== null || cancelTarget !== null;
 
     return (
         <>
+            <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+            {cancelTarget && (
+                <ConfirmCancelDialog
+                    bookTitle={cancelTarget.title}
+                    onConfirm={handleConfirmCancel}
+                    onClose={() => setCancelTarget(null)}
+                    isLoading={isCancelling}
+                />
+            )}
+
             {renderTnCModal()}
             {renderSuccessModal()}
 
@@ -417,11 +488,9 @@ export default function DashboardPage() {
             {selectedBook && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99990] flex items-center justify-center p-4">
                     <div className="flex flex-col md:flex-row relative no-scrollbar p-6 md:p-8 gap-6 md:gap-8 bg-[#F8F5FF] w-full max-w-[850px] max-h-[90vh] overflow-y-auto rounded-[24px] shadow-2xl animate-in zoom-in-95 duration-200">
-                        
                         <button onClick={() => { setSelectedBook(null); setIsExpanded(false); setIsFavorited(false); }} className="absolute top-4 right-4 z-10 hover:scale-110 transition-transform">
                             <X color="#333" className="w-6 h-6 md:w-7 md:h-7" />
                         </button>
-
                         <div className="flex flex-col items-center w-full max-w-[200px] md:max-w-[280px] shrink-0 mx-auto">
                             <img src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} alt={selectedBook.judul} className="w-full aspect-[2/3] object-cover rounded-[16px] shadow-xl" />
                             <div className="flex gap-1 md:gap-2 mt-4 md:mt-5">
@@ -429,69 +498,47 @@ export default function DashboardPage() {
                                     <Star key={star} className="w-5 h-5 md:w-7 md:h-7" fill="#FFD700" color="#FFD700" />
                                 ))}
                             </div>
-                            <p className="text-[14px] md:text-[16px] font-semibold text-[#333] mt-3 md:mt-4 text-center">
-                                ISBN : {selectedBook.isbn || 'Unknown'}
-                            </p>
+                            <p className="text-[14px] md:text-[16px] font-semibold text-[#333] mt-3 md:mt-4 text-center">ISBN : {selectedBook.isbn || 'Unknown'}</p>
                         </div>
-
                         <div className="flex flex-col flex-1 pt-0 md:pt-2">
                             <h2 className="text-[24px] md:text-[32px] font-extrabold text-[#111] mb-1 md:mb-2 leading-[1.2]">{selectedBook.judul}</h2>
                             <p className="text-[16px] md:text-[20px] font-medium text-[#555] mb-3 md:mb-4">{selectedBook.penulis}</p>
-
                             <div className="flex flex-wrap items-center gap-2 mb-3 md:mb-4">
                                 <div className={`w-3 h-3 rounded-full ${selectedBook.stok > 0 ? 'bg-[#00A651]' : 'bg-[#E11D48]'}`} />
-                                <span className={`text-[13px] md:text-[15px] font-bold ${selectedBook.stok > 0 ? 'text-[#00A651]' : 'text-[#E11D48]'}`}>
-                                    {selectedBook.stok > 0 ? 'Available for Loan' : 'Out of Stock'}
-                                </span>
+                                <span className={`text-[13px] md:text-[15px] font-bold ${selectedBook.stok > 0 ? 'text-[#00A651]' : 'text-[#E11D48]'}`}>{selectedBook.stok > 0 ? 'Available for Loan' : 'Out of Stock'}</span>
                                 <span className="text-[#A1A1AA] mx-1 hidden sm:block">|</span>
-                                <span className="text-[13px] md:text-[15px] text-[#111] font-medium w-full sm:w-auto">
-                                    Stock leftovers: <b className="font-extrabold">{selectedBook.stok > 0 ? `${selectedBook.stok} Books` : '0 Books'}</b>
-                                </span>
+                                <span className="text-[13px] md:text-[15px] text-[#111] font-medium w-full sm:w-auto">Stock leftovers: <b className="font-extrabold">{selectedBook.stok > 0 ? `${selectedBook.stok} Books` : '0 Books'}</b></span>
                             </div>
-
                             <div className="flex flex-wrap gap-2 md:gap-3 mb-4 md:mb-6">
-                                <span className={`text-[12px] md:text-[14px] font-bold px-3 py-1.5 md:px-4 md:py-2 rounded-lg w-fit ${getCategoryBadge(selectedBook.kategori?.nama_kategori || '')}`}>
-                                    {selectedBook.kategori?.nama_kategori || 'General'}
-                                </span>
+                                <span className={`text-[12px] md:text-[14px] font-bold px-3 py-1.5 md:px-4 md:py-2 rounded-lg w-fit ${getCategoryBadge(selectedBook.kategori?.nama_kategori || '')}`}>{selectedBook.kategori?.nama_kategori || 'General'}</span>
                             </div>
-
                             <h3 className="text-[18px] md:text-[20px] font-extrabold text-[#111] mb-2 md:mb-3">Synopsis</h3>
-                            <p className="text-[14px] md:text-[16px] text-[#222] leading-[1.6] mb-5 md:mb-6 font-medium whitespace-pre-wrap">
-                                {renderSynopsis()}
-                            </p>
-
+                            <p className="text-[14px] md:text-[16px] text-[#222] leading-[1.6] mb-5 md:mb-6 font-medium whitespace-pre-wrap">{renderSynopsis()}</p>
                             <div className="mt-auto flex flex-col gap-3">
-                                {/* PEMBARUAN: Ditambahkan flex container dengan tombol Favorit */}
                                 <div className="flex gap-3 w-full">
                                     <button
                                         onClick={handleToggleFavorite}
                                         disabled={isTogglingFavorite}
                                         className={`px-4 py-3 md:py-4 rounded-xl border font-bold text-[14px] md:text-[16px] flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
-                                            ${isFavorited 
-                                                ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' 
-                                                : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
-                                            }`}
+                                            ${isFavorited ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'}`}
                                     >
                                         <Heart size={20} className={isFavorited ? "fill-red-600 text-red-600" : "text-zinc-500"} />
                                         <span className="hidden sm:inline">{isFavorited ? 'Unfavorite' : 'Favorite'}</span>
                                     </button>
-
                                     <button
                                         onClick={() => { setIsTnCOpen(true); setAgreedToTnC(false); }}
                                         disabled={selectedBook.stok <= 0}
                                         className="flex-1 py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.02] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
                                         style={{
                                             background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
-                                            cursor: selectedBook.stok > 0 ? 'pointer' : 'not-allowed', 
+                                            cursor: selectedBook.stok > 0 ? 'pointer' : 'not-allowed',
                                             opacity: selectedBook.stok > 0 ? 1 : 0.6,
                                         }}
                                     >
                                         Book This Title
                                     </button>
                                 </div>
-                                <p className="text-center text-[12px] md:text-[14px] text-[#555] mt-1 font-medium">
-                                    *Maximum loan period is 7 working days
-                                </p>
+                                <p className="text-center text-[12px] md:text-[14px] text-[#555] mt-1 font-medium">*Maximum loan period is 7 working days</p>
                             </div>
                         </div>
                     </div>
@@ -502,11 +549,9 @@ export default function DashboardPage() {
             {selectedLoan && (
                 <div className="fixed inset-0 z-[99990] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
                     <div className="bg-white rounded-[32px] w-full max-w-[600px] shadow-2xl relative animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
-                        
                         <button onClick={() => setSelectedLoan(null)} className="absolute top-6 right-6 p-2 bg-zinc-100 hover:bg-zinc-200 text-zinc-600 rounded-full transition-colors z-10">
                             <X size={20} />
                         </button>
-
                         <div className="p-8 md:p-10 flex flex-col gap-8">
                             <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start text-center sm:text-left">
                                 <div className="w-[120px] aspect-[2/3] shrink-0 bg-zinc-100 border border-zinc-200 rounded-2xl overflow-hidden shadow-md">
@@ -518,8 +563,6 @@ export default function DashboardPage() {
                                     </span>
                                     <h2 className="text-[24px] font-bold text-black leading-tight mb-1">{selectedLoan.title}</h2>
                                     <p className="text-[16px] text-zinc-500 font-medium">{selectedLoan.author}</p>
-                                    
-                                    {/* KODE BOOKING DI DALAM MODAL */}
                                     <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between">
                                         <span className="text-[13px] font-bold text-blue-800 uppercase">Booking Code</span>
                                         <span className="text-[20px] font-black text-[#161B85] tracking-[0.2em]">{selectedLoan.kode_peminjaman || '-'}</span>
@@ -531,14 +574,19 @@ export default function DashboardPage() {
 
                             <div className="grid grid-cols-2 gap-y-6 gap-x-4">
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">Date Borrowed</span>
+                                    <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">
+                                        {['direservasi', 'dibatalkan'].includes(selectedLoan.status) ? 'Reserved Date' : 'Date Borrowed'}
+                                    </span>
                                     <span className="text-[16px] font-bold text-black">{formatDate(selectedLoan.tanggal_pinjam)}</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">Return Due Date</span>
-                                    <span className="text-[16px] font-bold text-black">{formatDate(selectedLoan.dueDate)}</span>
+                                    <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">
+                                        {['direservasi', 'dibatalkan'].includes(selectedLoan.status) ? 'Pickup Deadline' : 'Return Due Date'}
+                                    </span>
+                                    <span className="text-[16px] font-bold text-black">
+                                        {['direservasi', 'dibatalkan'].includes(selectedLoan.status) ? getPickupDeadline(selectedLoan.tanggal_pinjam) : formatDate(selectedLoan.dueDate)}
+                                    </span>
                                 </div>
-
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">Current Status</span>
                                     <span className={`text-[16px] font-bold ${getStatusInfo(selectedLoan.dueDate, selectedLoan.status).color.split(' ')[0]}`}>
@@ -553,7 +601,19 @@ export default function DashboardPage() {
                                 </div>
                             </div>
 
-                            <div className="pt-4 border-t border-zinc-100 mt-2">
+                            <div className="pt-4 border-t border-zinc-100 mt-2 flex flex-col gap-3">
+                                {selectedLoan.status === 'direservasi' && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setCancelTarget(selectedLoan);
+                                        }}
+                                        className="w-full py-4 rounded-xl border-2 border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-[16px] transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <X size={18} />
+                                        Cancel Reservation
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setSelectedLoan(null)}
                                     className="w-full py-4 rounded-xl text-white font-bold text-[16px] transition-all hover:-translate-y-0.5 shadow-lg active:scale-95"
@@ -570,7 +630,7 @@ export default function DashboardPage() {
             {/* ================= DASHBOARD MAIN CONTENT ================= */}
             <div className={`flex flex-col gap-8 w-full max-w-[1200px] mx-auto transition-all duration-300 ${isAnyModalOpen ? 'blur-sm pointer-events-none' : ''}`}>
 
-                {/* Hero Banner & Stats Cards */}
+                {/* Hero Banner */}
                 <div className="w-full h-[313px] rounded-[20px] overflow-hidden relative shadow-sm flex flex-col justify-center px-5 md:px-10 mt-6">
                     <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('/background-dashboard.jpg')` }} />
                     <div className="absolute inset-0 bg-gradient-to-r from-[#161B85]/90 to-[#492073]/60 mix-blend-multiply" />
@@ -581,6 +641,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
 
+                {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-white rounded-2xl p-5 shadow-[0px_2px_4px_rgba(0,0,0,0.25)] border border-zinc-100">
                         <p className="text-[16px] text-zinc-500 font-medium mb-1">Books Handled</p>
@@ -592,9 +653,7 @@ export default function DashboardPage() {
                             <p className="text-[20px] font-bold text-black">{stats.wishlist.total} Saved</p>
                             <p className="text-[12px] text-[#A855F7] font-medium mt-1">{stats.wishlist.available} Available in library</p>
                         </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none">
-                            <path d="M19.2767 35.1867C19.4879 35.3363 19.7403 35.4166 19.9992 35.4166C20.258 35.4166 20.5104 35.3363 20.7217 35.1867L20 34.1667L20.7233 35.1867L20.7367 35.1767L20.7717 35.1517L20.905 35.055C21.0206 34.9717 21.1844 34.85 21.3967 34.69C23.8733 32.8207 26.2111 30.7742 28.3917 28.5667C30.305 26.62 32.25 24.345 33.7233 21.9317C35.19 19.5317 36.25 16.8917 36.25 14.245C36.25 11.1033 35.275 8.64834 33.55 6.98168C31.8333 5.32501 29.5167 4.58334 27.0833 4.58334C24.2083 4.58334 21.67 5.97168 20 8.11168C18.33 5.97168 15.79 4.58334 12.9167 4.58334C7.78333 4.58334 3.75 8.98168 3.75 14.245C3.75 16.8917 4.81167 19.53 6.27667 21.9317C7.75 24.345 9.695 26.62 11.6083 28.5683C13.933 30.9203 16.436 33.0889 19.095 35.055L19.2283 35.1517L19.2633 35.1767L19.2767 35.1867Z" fill="#A347FF" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M19.2767 35.1867C19.4879 35.3363 19.7403 35.4166 19.9992 35.4166C20.258 35.4166 20.5104 35.3363 20.7217 35.1867L20 34.1667L20.7233 35.1867L20.7367 35.1767L20.7717 35.1517L20.905 35.055C21.0206 34.9717 21.1844 34.85 21.3967 34.69C23.8733 32.8207 26.2111 30.7742 28.3917 28.5667C30.305 26.62 32.25 24.345 33.7233 21.9317C35.19 19.5317 36.25 16.8917 36.25 14.245C36.25 11.1033 35.275 8.64834 33.55 6.98168C31.8333 5.32501 29.5167 4.58334 27.0833 4.58334C24.2083 4.58334 21.67 5.97168 20 8.11168C18.33 5.97168 15.79 4.58334 12.9167 4.58334C7.78333 4.58334 3.75 8.98168 3.75 14.245C3.75 16.8917 4.81167 19.53 6.27667 21.9317C7.75 24.345 9.695 26.62 11.6083 28.5683C13.933 30.9203 16.436 33.0889 19.095 35.055L19.2283 35.1517L19.2633 35.1767L19.2767 35.1867Z" fill="#A347FF" /></svg>
                     </div>
                     <div className="bg-white rounded-2xl p-5 shadow-[0px_2px_4px_rgba(0,0,0,0.25)] border border-zinc-100 flex justify-between items-center">
                         <div>
@@ -602,9 +661,7 @@ export default function DashboardPage() {
                             <p className="text-[20px] font-bold text-black">{stats.reserved} Reserved</p>
                             <p className="text-[12px] text-[#F43F5E] font-medium mt-1">Check reservation menu</p>
                         </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" fill="none">
-                            <path d="M9.16667 38.5C8.15833 38.5 7.29544 38.1413 6.578 37.4238C5.86056 36.7064 5.50122 35.8429 5.5 34.8333V9.16667C5.5 8.15833 5.85933 7.29544 6.578 6.578C7.29667 5.86056 8.15956 5.50122 9.16667 5.5H34.8333C35.8417 5.5 36.7052 5.85933 37.4238 6.578C38.1425 7.29667 38.5012 8.15956 38.5 9.16667V34.8333C38.5 35.8417 38.1413 36.7052 37.4238 37.4238C36.7064 38.1425 35.8429 38.5012 34.8333 38.5H9.16667ZM12.8333 31.1667H22V27.5H12.8333V31.1667ZM14.6667 23.8333L22 20.1667L29.3333 23.8333V9.16667H14.6667V23.8333Z" fill="#FF68A5" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" fill="none"><path d="M9.16667 38.5C8.15833 38.5 7.29544 38.1413 6.578 37.4238C5.86056 36.7064 5.50122 35.8429 5.5 34.8333V9.16667C5.5 8.15833 5.85933 7.29544 6.578 6.578C7.29667 5.86056 8.15956 4.30578 9.16667 3H34.8333C35.8417 3 36.7052 3.35933 37.4238 4.078C38.1425 4.79667 38.5012 5.65956 38.5 6.66667V34.8333C38.5 35.8417 38.1413 36.7052 37.4238 37.4238C36.7064 38.1425 35.8429 38.5012 34.8333 38.5H9.16667ZM12.8333 31.1667H22V27.5H12.8333V31.1667ZM14.6667 23.8333L22 20.1667L29.3333 23.8333V9.16667H14.6667V23.8333Z" fill="#FF68A5" /></svg>
                     </div>
                     <div className="bg-white rounded-2xl p-5 shadow-[0px_2px_4px_rgba(0,0,0,0.25)] border border-zinc-100 flex justify-between items-center">
                         <div>
@@ -618,9 +675,7 @@ export default function DashboardPage() {
                                 {stats.totalPenalty > 0 ? 'Please settle bills' : 'No outstanding bills'}
                             </p>
                         </div>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" fill="none">
-                            <path d="M22 29.3333C20.9917 29.3333 20.1288 28.9746 19.4113 28.2572C18.6939 27.5397 18.3346 26.6762 18.3333 25.6667C18.3321 24.6571 18.6914 23.7942 19.4113 23.078C20.1312 22.3618 20.9941 22.0024 22 22C23.0059 21.9976 23.8694 22.3569 24.5905 23.078C25.3116 23.7991 25.6703 24.662 25.6667 25.6667C25.663 26.6713 25.3043 27.5348 24.5905 28.2572C23.8767 28.9795 23.0132 29.3382 22 29.3333ZM13.5208 12.8333H30.4792L32.8167 8.15833C33.1222 7.54722 33.099 6.95139 32.747 6.37083C32.395 5.79028 31.8682 5.5 31.1667 5.5H12.8333C12.1306 5.5 11.6038 5.79028 11.253 6.37083C10.9022 6.95139 10.879 7.54722 11.1833 8.15833L13.5208 12.8333ZM15.4 38.5H28.6C31.35 38.5 33.6875 37.5454 35.6125 35.6363C37.5375 33.7272 38.5 31.3818 38.5 28.6C38.5 27.4389 38.3014 26.3083 37.9042 25.2083C37.5069 24.1083 36.9417 23.1153 36.2083 22.2292L31.4417 16.5H12.5583L7.79167 22.2292C7.05833 23.1153 6.49306 24.1083 6.09583 25.2083C5.69861 26.3083 5.5 27.4389 5.5 28.6C5.5 31.3806 6.45517 33.726 8.3655 35.6363C10.2758 37.5467 12.6207 38.5012 15.4 38.5Z" fill="#62AAFF" />
-                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44" fill="none"><path d="M22 29.3333C20.9917 29.3333 20.1288 28.9746 19.4113 28.2572C18.6939 27.5397 18.3346 26.6762 18.3333 25.6667C18.3321 24.6571 18.6914 23.7942 19.4113 23.078C20.1312 22.3618 20.9941 22.0024 22 22C23.0059 21.9976 23.8694 22.3569 24.5905 23.078C25.3116 23.7991 25.6703 24.662 25.6667 25.6667C25.663 26.6713 25.3043 27.5348 24.5905 28.2572C23.8767 28.9795 23.0132 29.3382 22 29.3333ZM13.5208 12.8333H30.4792L32.8167 8.15833C33.1222 7.54722 33.099 6.95139 32.747 6.37083C32.395 5.79028 31.8682 5.5 31.1667 5.5H12.8333C12.1306 5.5 11.6038 5.79028 11.253 6.37083C10.9022 6.95139 10.879 7.54722 11.1833 8.15833L13.5208 12.8333ZM15.4 38.5H28.6C31.35 38.5 33.6875 37.5454 35.6125 35.6363C37.5375 33.7272 38.5 31.3818 38.5 28.6C38.5 27.4389 38.3014 26.3083 37.9042 25.2083C37.5069 24.1083 36.9417 23.1153 36.2083 22.2292L31.4417 16.5H12.5583L7.79167 22.2292C7.05833 23.1153 6.49306 24.1083 6.09583 25.2083C5.69861 26.3083 5.5 27.4389 5.5 28.6C5.5 31.3806 6.45517 33.726 8.3655 35.6363C10.2758 37.5467 12.6207 38.5012 15.4 38.5Z" fill="#62AAFF" /></svg>
                     </div>
                 </div>
 
@@ -656,37 +711,45 @@ export default function DashboardPage() {
                         </div>
                     ) : (
                         <div className="flex flex-col gap-4 mb-10">
-                            {currentReading.map((item) => (
-                                <div key={item.id} onClick={() => setSelectedLoan(item)} className="bg-white rounded-[24px] p-5 shadow-[0px_2px_8px_rgba(0,0,0,0.04)] border border-zinc-100 flex flex-col sm:flex-row gap-5 md:gap-8 hover:shadow-[0px_8px_24px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all cursor-pointer">
-                                    <div className="w-[100px] md:w-[130px] aspect-[2/3] bg-zinc-100 rounded-xl overflow-hidden shrink-0 mx-auto sm:mx-0 border border-zinc-100">
-                                        <img src={item.cover || "/placeholder-cover.jpg"} alt={item.title} className="w-full h-full object-cover" />
-                                    </div>
-                                    <div className="flex flex-col justify-center gap-1.5 flex-1 py-1">
-                                        <div className="flex justify-between items-start gap-4">
-                                            <h3 className="text-[20px] md:text-[24px] font-bold text-black leading-tight line-clamp-1 sm:line-clamp-2">{item.title}</h3>
-                                            <span className={`shrink-0 text-[11px] md:text-[12px] font-bold px-3 py-1 rounded-md ${getStatusInfo(item.dueDate, item.status).color}`}>
-                                                {getStatusInfo(item.dueDate, item.status).text}
-                                            </span>
+                            {currentReading.map((item) => {
+                                const isReservedOrCanceled = ['direservasi', 'dibatalkan'].includes(item.status);
+                                return (
+                                    <div key={item.id} onClick={() => setSelectedLoan(item)} className="bg-white rounded-[24px] p-5 shadow-[0px_2px_8px_rgba(0,0,0,0.04)] border border-zinc-100 flex flex-col sm:flex-row gap-5 md:gap-8 hover:shadow-[0px_8px_24px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all cursor-pointer">
+                                        <div className="w-[100px] md:w-[130px] aspect-[2/3] bg-zinc-100 rounded-xl overflow-hidden shrink-0 mx-auto sm:mx-0 border border-zinc-100">
+                                            <img src={item.cover || "/placeholder-cover.jpg"} alt={item.title} className="w-full h-full object-cover" />
                                         </div>
-                                        <p className="text-[14px] md:text-[16px] text-zinc-500 font-medium">{item.author}</p>
-
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-2 mt-5 sm:mt-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-zinc-100">
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-[12px] md:text-[13px] text-zinc-500 font-medium">Borrowed Date</span>
-                                                <span className="text-[13px] md:text-[15px] font-bold text-black">{formatDate(item.tanggal_pinjam)}</span>
+                                        <div className="flex flex-col justify-center gap-1.5 flex-1 py-1">
+                                            <div className="flex justify-between items-start gap-4">
+                                                <h3 className="text-[20px] md:text-[24px] font-bold text-black leading-tight line-clamp-1 sm:line-clamp-2">{item.title}</h3>
+                                                <span className={`shrink-0 text-[11px] md:text-[12px] font-bold px-3 py-1 rounded-md ${getStatusInfo(item.dueDate, item.status).color}`}>
+                                                    {getStatusInfo(item.dueDate, item.status).text}
+                                                </span>
                                             </div>
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-[12px] md:text-[13px] text-zinc-500 font-medium">Return Due Date</span>
-                                                <span className="text-[13px] md:text-[15px] font-bold text-black">{formatDate(item.dueDate)}</span>
-                                            </div>
-                                            <div className="flex flex-col gap-0.5 col-span-2 sm:col-span-1">
-                                                <span className="text-[12px] md:text-[13px] text-zinc-500 font-medium">Booking Code</span>
-                                                <span className="text-[13px] md:text-[16px] font-black tracking-widest text-[#161B85]">{item.kode_peminjaman || '-'}</span>
+                                            <p className="text-[14px] md:text-[16px] text-zinc-500 font-medium">{item.author}</p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-2 mt-5 sm:mt-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-zinc-100">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-[12px] md:text-[13px] text-zinc-500 font-medium">
+                                                        {isReservedOrCanceled ? 'Reserved Date' : 'Borrowed Date'}
+                                                    </span>
+                                                    <span className="text-[13px] md:text-[15px] font-bold text-black">{formatDate(item.tanggal_pinjam)}</span>
+                                                </div>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-[12px] md:text-[13px] text-zinc-500 font-medium">
+                                                        {isReservedOrCanceled ? 'Pickup Deadline' : 'Return Due Date'}
+                                                    </span>
+                                                    <span className="text-[13px] md:text-[15px] font-bold text-black">
+                                                        {isReservedOrCanceled ? getPickupDeadline(item.tanggal_pinjam) : formatDate(item.dueDate)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex flex-col gap-0.5 col-span-2 sm:col-span-1">
+                                                    <span className="text-[12px] md:text-[13px] text-zinc-500 font-medium">Booking Code</span>
+                                                    <span className="text-[13px] md:text-[16px] font-black tracking-widest text-[#161B85]">{item.kode_peminjaman || '-'}</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
