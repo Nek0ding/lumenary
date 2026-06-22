@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react'; // Tambahkan Loader2
 
 export default function RegisterPage() {
     const router = useRouter();
@@ -16,6 +16,7 @@ export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false); // State untuk loading submit
     const [agree, setAgree] = useState(false);
 
     // --- LOGIKA VERIFIKASI SESI KE SERVER (Sangat Aman) ---
@@ -30,10 +31,18 @@ export default function RegisterPage() {
                 const res = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                const data = await res.json();
+                
                 if (res.ok) {
-                    router.replace('/dashboard');
+                    // Redirect berdasarkan role jika user iseng buka /register saat sudah login
+                    if (data.user?.role === 'admin') {
+                        router.replace('/admin/dashboard');
+                    } else {
+                        router.replace('/dashboard');
+                    }
                 } else {
                     localStorage.removeItem('lumenary_token');
+                    localStorage.removeItem('lumenary_user');
                     setLoading(false);
                 }
             } catch {
@@ -42,8 +51,6 @@ export default function RegisterPage() {
         };
         verifySession();
     }, [router]);
-
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
 
     const handleRegisterSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -64,6 +71,8 @@ export default function RegisterPage() {
             return;
         }
 
+        setIsSubmitting(true); // Aktifkan animasi loading
+
         try {
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
@@ -83,6 +92,8 @@ export default function RegisterPage() {
             }
         } catch (error) {
             setError('Terjadi kesalahan pada server.');
+        } finally {
+            setIsSubmitting(false); // Matikan animasi loading
         }
     };
 
@@ -111,23 +122,53 @@ export default function RegisterPage() {
                         </div>
 
                         <form onSubmit={handleRegisterSubmit} className="flex flex-col gap-4">
-                            {error && <p className="text-red-500 text-[13px] font-semibold">*{error}</p>}
+                            {error && <p className="text-red-500 text-[13px] font-semibold animate-in fade-in duration-200">*{error}</p>}
 
                             <div className="flex flex-col gap-2">
                                 <label className="text-[14px] font-bold">NPM</label>
-                                <input type="text" placeholder="Enter your NPM" value={formData.npm} onChange={(e) => setFormData({ ...formData, npm: e.target.value })} maxLength={8} className="w-full h-[48px] px-4 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85]" required />
+                                <input 
+                                    type="text" 
+                                    placeholder="Enter your NPM" 
+                                    value={formData.npm} 
+                                    onChange={(e) => setFormData({ ...formData, npm: e.target.value })} 
+                                    maxLength={8} 
+                                    disabled={isSubmitting}
+                                    className="w-full h-[48px] px-4 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85] disabled:opacity-50 disabled:bg-zinc-50 transition-all" 
+                                    required 
+                                />
                             </div>
 
                             <div className="flex flex-col gap-2">
                                 <label className="text-[14px] font-bold">University Email</label>
-                                <input type="email" placeholder="your-email@student.gunadarma.ac.id" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="w-full h-[48px] px-4 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85]" required />
+                                <input 
+                                    type="email" 
+                                    placeholder="your-email@student.gunadarma.ac.id" 
+                                    value={formData.email} 
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })} 
+                                    disabled={isSubmitting}
+                                    className="w-full h-[48px] px-4 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85] disabled:opacity-50 disabled:bg-zinc-50 transition-all" 
+                                    required 
+                                />
                             </div>
 
                             <div className="flex flex-col gap-2">
                                 <label className="text-[14px] font-bold">Password</label>
                                 <div className="relative">
-                                    <input type={showPassword ? "text" : "password"} placeholder="Create a strong password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} className="w-full h-[48px] px-4 pr-10 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85]" required />
-                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                                    <input 
+                                        type={showPassword ? "text" : "password"} 
+                                        placeholder="Create a strong password" 
+                                        value={formData.password} 
+                                        onChange={(e) => setFormData({ ...formData, password: e.target.value })} 
+                                        disabled={isSubmitting}
+                                        className="w-full h-[48px] px-4 pr-10 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85] disabled:opacity-50 disabled:bg-zinc-50 transition-all" 
+                                        required 
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setShowPassword(!showPassword)} 
+                                        disabled={isSubmitting}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 disabled:opacity-50"
+                                    >
                                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
                                 </div>
@@ -135,14 +176,24 @@ export default function RegisterPage() {
 
                             <div className="flex flex-col gap-2">
                                 <label className="text-[14px] font-bold">Confirm Password</label>
-                                <input type="password" placeholder="Re-enter your password" value={formData.confirmPassword} onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} className="w-full h-[48px] px-4 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85]" required />
+                                <input 
+                                    type="password" 
+                                    placeholder="Re-enter your password" 
+                                    value={formData.confirmPassword} 
+                                    onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} 
+                                    disabled={isSubmitting}
+                                    className="w-full h-[48px] px-4 rounded-xl border border-zinc-300 outline-none focus:border-[#161B85] disabled:opacity-50 disabled:bg-zinc-50 transition-all" 
+                                    required 
+                                />
                             </div>
+                            
                             <div className="flex items-center gap-2 mt-2">
                                 <input
                                     type="checkbox"
                                     checked={agree}
                                     onChange={(e) => setAgree(e.target.checked)}
-                                    className="w-4 h-4 rounded border-zinc-300 text-[#161B85] focus:ring-[#161B85] cursor-pointer"
+                                    disabled={isSubmitting}
+                                    className="w-4 h-4 rounded border-zinc-300 text-[#161B85] focus:ring-[#161B85] cursor-pointer disabled:opacity-50"
                                 />
                                 <span className="text-[13px] text-zinc-600">
                                     I agree to Lumenary's{' '}
@@ -156,14 +207,27 @@ export default function RegisterPage() {
                                 </span>
                             </div>
 
-                            <button type="submit" className="w-full h-[52px] mt-4 rounded-full text-white font-bold text-[18px]" style={{ background: 'linear-gradient(90deg, #D0DCFE 0%, #161B85 100%)' }}>
-                                Create Account
+                            <button 
+                                type="submit" 
+                                disabled={isSubmitting}
+                                className={`w-full h-[52px] mt-4 rounded-full text-white font-bold text-[18px] transition-all flex items-center justify-center gap-2
+                                    ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-lg active:scale-[0.98]'}`} 
+                                style={{ background: 'linear-gradient(90deg, #D0DCFE 0%, #161B85 100%)' }}
+                            >
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 size={24} className="animate-spin text-white" />
+                                        Creating Account...
+                                    </>
+                                ) : (
+                                    'Create Account'
+                                )}
                             </button>
                         </form>
 
                         <div className="flex justify-center items-center gap-2 text-[14px]">
                             <span className="text-zinc-600">Already have an account?</span>
-                            <Link href="/login" className="font-bold text-[#161B85]">Sign In</Link>
+                            <Link href="/login" className="font-bold text-[#161B85] hover:underline">Sign In</Link>
                         </div>
                     </div>
                 </div>
