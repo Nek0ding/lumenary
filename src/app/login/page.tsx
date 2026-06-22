@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react'; // Tambahkan Loader2
 
 export default function LoginPage() {
     const router = useRouter();
@@ -11,7 +11,8 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true); // Loading untuk cek sesi awal
+    const [isSubmitting, setIsSubmitting] = useState(false); // Loading untuk tombol submit
     const [keepSignedIn, setKeepSignedIn] = useState(false);
 
     useEffect(() => {
@@ -30,9 +31,15 @@ export default function LoginPage() {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
+                const data = await res.json();
+
                 if (res.ok) {
-                    // Token valid — redirect ke dashboard
-                    router.replace('/dashboard');
+                    // Token valid — cek role untuk redirect yang sesuai
+                    if (data.user?.role === 'ADMIN') {
+                        router.replace('/admin/dashboard');
+                    } else {
+                        router.replace('/dashboard');
+                    }
                 } else {
                     // Token tidak valid / expired — bersihkan storage
                     localStorage.removeItem('lumenary_token');
@@ -52,6 +59,7 @@ export default function LoginPage() {
     const handleSignInSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
+        setIsSubmitting(true); // Aktifkan animasi loading tombol
 
         try {
             const res = await fetch('/api/auth/login', {
@@ -67,17 +75,23 @@ export default function LoginPage() {
                 localStorage.setItem('lumenary_user', JSON.stringify(data.user));
 
                 // Jika tidak centang "Keep me signed in", tandai sebagai session-only
-                // sessionStorage otomatis terhapus saat browser/tab ditutup
                 if (!keepSignedIn) {
                     sessionStorage.setItem('lumenary_session_only', 'true');
                 }
 
-                router.replace('/dashboard');
+                // REDIRECT BERDASARKAN ROLE
+                if (data.user.role === 'admin') {
+                    router.replace('/admin/dashboard');
+                } else {
+                    router.replace('/dashboard');
+                }
             } else {
                 setError(data.message || 'Login failed, check your credential.');
             }
         } catch {
             setError('Terjadi kesalahan pada server. Coba lagi nanti.');
+        } finally {
+            setIsSubmitting(false); // Matikan animasi loading tombol
         }
     };
 
@@ -146,7 +160,8 @@ export default function LoginPage() {
                                     placeholder="Enter your id number"
                                     value={npm}
                                     onChange={(e) => setNpm(e.target.value)}
-                                    className="w-full h-[48px] sm:h-[52px] xl:h-[48px] px-4 rounded-xl border border-zinc-300 bg-white text-black placeholder-zinc-400 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] transition-all text-[14px] sm:text-[15px] font-medium"
+                                    disabled={isSubmitting}
+                                    className="w-full h-[48px] sm:h-[52px] xl:h-[48px] px-4 rounded-xl border border-zinc-300 bg-white text-black placeholder-zinc-400 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] transition-all text-[14px] sm:text-[15px] font-medium disabled:opacity-50 disabled:bg-zinc-50"
                                     required
                                 />
                             </div>
@@ -159,13 +174,15 @@ export default function LoginPage() {
                                         placeholder="Enter your password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full h-[48px] sm:h-[52px] xl:h-[48px] px-4 pr-12 rounded-xl border border-zinc-300 bg-white text-black placeholder-zinc-400 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] transition-all text-[14px] sm:text-[15px] font-medium"
+                                        disabled={isSubmitting}
+                                        className="w-full h-[48px] sm:h-[52px] xl:h-[48px] px-4 pr-12 rounded-xl border border-zinc-300 bg-white text-black placeholder-zinc-400 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] transition-all text-[14px] sm:text-[15px] font-medium disabled:opacity-50 disabled:bg-zinc-50"
                                         required
                                     />
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors focus:outline-none"
+                                        disabled={isSubmitting}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors focus:outline-none disabled:opacity-50"
                                     >
                                         {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                     </button>
@@ -178,7 +195,8 @@ export default function LoginPage() {
                                         type="checkbox"
                                         checked={keepSignedIn}
                                         onChange={(e) => setKeepSignedIn(e.target.checked)}
-                                        className="w-4 h-4 rounded border-zinc-300 text-[#161B85] focus:ring-[#161B85] cursor-pointer"
+                                        disabled={isSubmitting}
+                                        className="w-4 h-4 rounded border-zinc-300 text-[#161B85] focus:ring-[#161B85] cursor-pointer disabled:opacity-50"
                                     />
                                     <span className="text-[13px] font-medium text-zinc-500 group-hover:text-zinc-700 transition-colors">Keep me signed in</span>
                                 </label>
@@ -189,10 +207,19 @@ export default function LoginPage() {
 
                             <button
                                 type="submit"
-                                className="w-full h-[52px] sm:h-[56px] mt-2 rounded-full text-white text-[18px] sm:text-[20px] font-bold shadow-md hover:shadow-xl hover:opacity-95 transition-all active:scale-[0.98] flex items-center justify-center"
+                                disabled={isSubmitting}
+                                className={`w-full h-[52px] sm:h-[56px] mt-2 rounded-full text-white text-[18px] sm:text-[20px] font-bold shadow-md transition-all flex items-center justify-center gap-2
+                                    ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-xl hover:opacity-95 active:scale-[0.98]'}`}
                                 style={{ background: 'linear-gradient(90deg, #D0DCFE 0%, #161B85 100%)' }}
                             >
-                                Sign In
+                                {isSubmitting ? (
+                                    <>
+                                        <Loader2 size={24} className="animate-spin text-white" />
+                                        Signing In...
+                                    </>
+                                ) : (
+                                    'Sign In'
+                                )}
                             </button>
                         </form>
 
