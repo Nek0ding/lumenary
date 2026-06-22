@@ -80,7 +80,7 @@ export default function LoginPage() {
                 }
 
                 // REDIRECT BERDASARKAN ROLE
-                if (data.user.role === 'admin') {
+                if (data.user.role === 'ADMIN') {
                     router.replace('/admin/dashboard');
                 } else {
                     router.replace('/dashboard');

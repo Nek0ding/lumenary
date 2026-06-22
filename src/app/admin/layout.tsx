@@ -30,7 +30,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             const user = JSON.parse(userStr);
             
             // Proteksi Khusus Admin: Jika role bukan admin, tendang ke dashboard user
-            if (user.role !== 'admin') {
+            if (user.role !== 'ADMIN') {
                 router.replace('/dashboard');
                 return;
             }
@@ -91,7 +91,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <img src="/logo.png" alt="Lumenary" className="w-8 h-8" />
                             <div className="flex flex-col gap-[2px]">
                                 <span className="text-[#161B85] text-[20px] md:text-[24px] font-bold leading-none">Lumenary</span>
-                                <span className="text-red-600 text-[8px] md:text-[9px] font-extrabold uppercase tracking-[0.05em] leading-none">ADMIN PANEL</span>
+                                <span className="text-[#492073] text-[8px] md:text-[9px] font-extrabold uppercase tracking-[0.05em] leading-none">ADMIN PANEL</span>
                             </div>
                         </div>
                         {/* Tombol Close hanya muncul di Mobile */}
@@ -112,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                         href={link.href} 
                                         onClick={() => setIsMobileMenuOpen(false)} // Tutup menu saat diklik di mobile
                                         className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[16px] font-medium transition-colors 
-                                            ${isActive ? 'bg-red-50 text-red-600 font-bold' : 'text-zinc-700 hover:bg-zinc-50'}`}
+                                            ${isActive ? 'bg-red-50 text-[#7A35BF] font-bold' : 'text-zinc-700 hover:bg-zinc-50'}`}
                                     >
                                         {link.icon} {link.name}
                                     </Link>
@@ -175,10 +175,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link className="flex items-center gap-3 border-l border-zinc-300 pl-4 md:pl-6 cursor-pointer" href="/admin/settings">
                             <div className="flex flex-col text-right md:text-left hidden sm:flex">
                                 <span className="text-[14px] font-bold text-black leading-tight line-clamp-1">{userProfile.name}</span>
-                                <span className="text-[11px] text-red-500 font-bold uppercase">{userProfile.npm}</span>
+                                <span className="text-[11px] text-black font-bold uppercase">{userProfile.npm}</span>
                             </div>
                             {/* Avatar Placeholder / Initial */}
-                            <div className="w-10 h-10 rounded-full bg-red-100 border-2 border-red-200 flex items-center justify-center text-red-600 font-bold">
+                            <div className="w-10 h-10 rounded-full bg-[#EADFFF] border-2 border-[#161B85]/20 flex items-center justify-center text-[#161B85] font-bold sm:hidden">
                                 {userProfile.name.charAt(0)}
                             </div>
                         </Link>
