@@ -160,6 +160,7 @@ export default function LoginPage() {
                                     placeholder="Enter your id number"
                                     value={npm}
                                     onChange={(e) => setNpm(e.target.value)}
+                                    maxLength={8} 
                                     disabled={isSubmitting}
                                     className="w-full h-[48px] sm:h-[52px] xl:h-[48px] px-4 rounded-xl border border-zinc-300 bg-white text-black placeholder-zinc-400 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] transition-all text-[14px] sm:text-[15px] font-medium disabled:opacity-50 disabled:bg-zinc-50"
                                     required

@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Loader2, BookOpen, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
+import { X, Loader2, BookOpen, AlertTriangle } from 'lucide-react';
+// 1. Tambahkan import react-hot-toast di sini
+import { toast } from 'react-hot-toast';
 
 interface LoanItem {
     id_peminjaman: number;
@@ -17,39 +19,6 @@ interface LoanItem {
     tanggal_kembali: string;
     status: string;
     denda?: number;
-}
-
-// ── Toast ────────────────────────────────────────────────────────────────────
-type ToastType = 'success' | 'error';
-interface Toast {
-    id: number;
-    message: string;
-    type: ToastType;
-}
-
-let toastCounter = 0;
-
-function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: number) => void }) {
-    return (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999999] flex flex-col gap-2 items-center pointer-events-none">
-            {toasts.map((t) => (
-                <div
-                    key={t.id}
-                    className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-white text-[14px] font-semibold pointer-events-auto animate-in slide-in-from-bottom-4 duration-300
-                        ${t.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}
-                >
-                    {t.type === 'success'
-                        ? <CheckCircle2 size={18} className="shrink-0" />
-                        : <AlertCircle size={18} className="shrink-0" />
-                    }
-                    {t.message}
-                    <button onClick={() => onRemove(t.id)} className="ml-1 opacity-70 hover:opacity-100">
-                        <X size={14} />
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
 }
 
 // ── Confirmation Dialog ──────────────────────────────────────────────────────
@@ -120,19 +89,6 @@ export default function HistoryPage() {
     const [cancelTarget, setCancelTarget] = useState<LoanItem | null>(null);
     const [isCancelling, setIsCancelling] = useState(false);
 
-    // Toast state
-    const [toasts, setToasts] = useState<Toast[]>([]);
-
-    const showToast = useCallback((message: string, type: ToastType = 'success') => {
-        const id = ++toastCounter;
-        setToasts((prev) => [...prev, { id, message, type }]);
-        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
-    }, []);
-
-    const removeToast = useCallback((id: number) => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, []);
-
     const fetchHistoryData = useCallback(async () => {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
@@ -182,6 +138,9 @@ export default function HistoryPage() {
     const handleConfirmCancel = async () => {
         if (!cancelTarget) return;
         setIsCancelling(true);
+        
+        // 2. Gunakan toast.loading bawaan react-hot-toast
+        const loadingToast = toast.loading('Cancelling reservation...');
 
         try {
             const token = localStorage.getItem('lumenary_token');
@@ -199,16 +158,18 @@ export default function HistoryPage() {
             if (res.ok && data.success) {
                 setCancelTarget(null);
                 setSelectedLoan(null);
-                showToast('Reservation successfully cancelled.', 'success');
+                // 3. Ubah jadi toast.success
+                toast.success('Reservation successfully cancelled.', { id: loadingToast });
                 setActiveTab('history');
                 fetchHistoryData();
             } else {
                 setCancelTarget(null);
-                showToast(data.message || 'Failed to cancel reservation.', 'error');
+                // 4. Ubah jadi toast.error
+                toast.error(data.message || 'Failed to cancel reservation.', { id: loadingToast });
             }
         } catch {
             setCancelTarget(null);
-            showToast('Network error. Please try again.', 'error');
+            toast.error('Network error. Please try again.', { id: loadingToast });
         } finally {
             setIsCancelling(false);
         }
@@ -221,11 +182,10 @@ export default function HistoryPage() {
         });
     };
 
-    // Fungsi Pembantu H+1 untuk Pickup Deadline
     const getPickupDeadline = (dateString: string | null | undefined) => {
         if (!dateString) return '-';
         const date = new Date(dateString);
-        date.setDate(date.getDate() + 1); // Tambah 1 hari dari tanggal pembuatan
+        date.setDate(date.getDate() + 1); 
         return formatDate(date.toISOString());
     };
 
@@ -278,7 +238,7 @@ export default function HistoryPage() {
     return (
         <div className="flex flex-col gap-6 w-full max-w-[900px] font-['Plus_Jakarta_Sans',sans-serif]">
 
-            <ToastContainer toasts={toasts} onRemove={removeToast} />
+            {/* Komponen ToastContainer dihapus dan digantikan oleh Toaster di root/layout */}
 
             {cancelTarget && (
                 <ConfirmCancelDialog
