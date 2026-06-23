@@ -3,9 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { Toaster } from 'react-hot-toast';
 import {
     LayoutDashboard, Library, History, Receipt,
-    Settings, LogOut, Search, Bell, BookOpen, Menu, X
+    Settings, LogOut, Search, Bell, BookOpen, Menu, X, Loader2
 } from 'lucide-react';
 import Footer from '@/components/footer';
 
@@ -15,7 +16,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
 
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [userProfile, setUserProfile] = useState({ name: 'Loading...', npm: '' });
-    
+
     // --- STATE PENCARIAN & MOBILE MENU ---
     const [searchQuery, setSearchQuery] = useState('');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -44,17 +45,23 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
 
     // --- HANDLER PENCARIAN ---
     const handleSearchSubmit = (e: React.FormEvent) => {
-        e.preventDefault(); 
+        e.preventDefault();
         if (searchQuery.trim() !== '') {
             router.push(`/explore?q=${encodeURIComponent(searchQuery)}`);
-            setSearchQuery(''); 
+            setSearchQuery('');
         } else {
             router.push(`/explore`);
         }
     };
 
     if (!isAuthorized) {
-        return <div className="min-h-screen bg-[#F8F8FF] flex items-center justify-center">Loading...</div>;
+        return (
+            <div className="min-h-screen bg-[#F8F8FF] flex flex-col items-center justify-center gap-3 font-['Plus_Jakarta_Sans',sans-serif]">
+                {/* 1. Gunakan Loader2 agar tampilannya konsisten dengan admin */}
+                <Loader2 className="w-8 h-8 text-[#161B85] animate-spin" />
+                <span className="font-semibold text-zinc-500 text-[14px]">Initializing your library workspace...</span>
+            </div>
+        );
     }
 
     return (
@@ -62,7 +69,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
 
             {/* ================= OVERLAY UNTUK MOBILE ================= */}
             {isMobileMenuOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm transition-opacity"
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
@@ -96,7 +103,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
                                     <path d="M17.3333 10.6667V5.33333C17.3333 4.95556 17.4613 4.63911 17.7173 4.384C17.9733 4.12889 18.2898 4.00089 18.6667 4H26.6667C27.0444 4 27.3613 4.128 27.6173 4.384C27.8733 4.64 28.0009 4.95644 28 5.33333V10.6667C28 11.0444 27.872 11.3613 27.616 11.6173C27.36 11.8733 27.0436 12.0009 26.6667 12H18.6667C18.2889 12 17.9724 11.872 17.7173 11.616C17.4622 11.36 17.3342 11.0436 17.3333 10.6667ZM4 16V5.33333C4 4.95556 4.128 4.63911 4.384 4.384C4.64 4.12889 4.95644 4.00089 5.33333 4H13.3333C13.7111 4 14.028 4.128 14.284 4.384C14.54 4.64 14.6676 4.95644 14.6667 5.33333V16C14.6667 16.3778 14.5387 16.6947 14.2827 16.9507C14.0267 17.2067 13.7102 17.3342 13.3333 17.3333H5.33333C4.95556 17.3333 4.63911 17.2053 4.384 16.9493C4.12889 16.6933 4.00089 16.3769 4 16ZM17.3333 26.6667V16C17.3333 15.6222 17.4613 15.3058 17.7173 15.0507C17.9733 14.7956 18.2898 14.6676 18.6667 14.6667H26.6667C27.0444 14.6667 27.3613 14.7947 27.6173 15.0507C27.8733 15.3067 28.0009 15.6231 28 16V26.6667C28 27.0444 27.872 27.3613 27.616 27.6173C27.36 27.8733 27.0436 28.0009 26.6667 28H18.6667C18.2889 28 17.9724 27.872 17.7173 27.616C17.4622 27.36 17.3342 27.0436 17.3333 26.6667ZM4 26.6667V21.3333C4 20.9556 4.128 20.6391 4.384 20.384C4.64 20.1289 4.95644 20.0009 5.33333 20H13.3333C13.7111 20 14.028 20.128 14.284 20.384C14.54 20.64 14.6676 20.9564 14.6667 21.3333V26.6667C14.6667 27.0444 14.5387 27.3613 14.2827 27.6173C14.0267 27.8733 13.7102 28.0009 13.3333 28H5.33333C4.95556 28 4.63911 27.872 4.384 27.616C4.12889 27.36 4.00089 27.0436 4 26.6667ZM6.66667 14.6667H12V6.66667H6.66667V14.6667ZM20 25.3333H25.3333V17.3333H20V25.3333ZM20 9.33333H25.3333V6.66667H20V9.33333ZM6.66667 25.3333H12V22.6667H6.66667V25.3333Z" fill="currentColor" />
                                 </svg> Dashboard
                             </Link>
-                            
+
                             {/* Explore / Book Catalog */}
                             <Link href="/explore" onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[16px] font-medium transition-colors ${pathname.startsWith('/explore') ? 'bg-zinc-100 text-[#161B85] font-bold' : 'text-black hover:bg-zinc-50'}`}>
                                 <BookOpen size={24} /> Book Catalog
@@ -146,10 +153,10 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
 
                 {/* Header / Top Bar */}
                 <header className="flex items-center justify-between px-6 md:px-8 py-5 md:py-6 bg-[#F8F8FF] sticky top-0 z-30">
-                    
+
                     <div className="flex items-center gap-4 w-full max-w-[600px]">
                         {/* Hamburger Button (Mobile Only) */}
-                        <button 
+                        <button
                             className="md:hidden text-zinc-700 hover:text-[#161B85] focus:outline-none p-2 -ml-2 rounded-lg bg-white shadow-sm border border-zinc-200"
                             onClick={() => setIsMobileMenuOpen(true)}
                         >
@@ -188,6 +195,7 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
                 {/* Page Content (Children) */}
                 <div className="flex-1 px-6 md:px-8 pb-8">
                     {children}
+                    <Toaster position="top-right" reverseOrder={false} />
                 </div>
 
                 <Footer />

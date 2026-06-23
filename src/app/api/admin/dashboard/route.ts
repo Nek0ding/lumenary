@@ -9,7 +9,12 @@ const supabase = createClient(
 
 export async function GET(request: Request) {
     try {
-        // 1. Verifikasi Token & Keamanan Admin
+        // --- 1. Ambil Parameter Filter dari URL ---
+        const url = new URL(request.url);
+        const filter = url.searchParams.get('filter') || '7days';
+        const loopDays = filter === '30days' ? 30 : 7; // Menentukan jumlah hari mundur
+
+        // 2. Verifikasi Token & Keamanan Admin
         const authHeader = request.headers.get('Authorization');
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return NextResponse.json({ success: false, message: "Akses ditolak!" }, { status: 401 });
@@ -21,33 +26,34 @@ export async function GET(request: Request) {
             return NextResponse.json({ success: false, message: "Sesi kedaluwarsa." }, { status: 401 });
         }
 
-        // SESUAIKAN: Menggunakan field 'created_at'/'updated_at' & Enum Role 'ADMIN'
         const adminUser = await prisma.user.findFirst({ where: { email: authData.user.email } });
         if (!adminUser || adminUser.role !== 'ADMIN') {
             return NextResponse.json({ success: false, message: "Akses terlarang!" }, { status: 403 });
         }
 
-        // 2. Setup Rentang Waktu 7 Hari Terakhir (Untuk Grafik)
+        // 3. Setup Rentang Waktu Dinamis (7 Hari vs 30 Hari)
         const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const chartBookings: { label: string; value: number }[] = [];
         const chartRevenue: { label: string; value: number }[] = [];
 
-        for (let i = 6; i >= 0; i--) {
+        for (let i = loopDays - 1; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             
             const startOfDay = new Date(d.setHours(0, 0, 0, 0));
             const endOfDay = new Date(d.setHours(23, 59, 59, 999));
-            const dayLabel = daysOfWeek[startOfDay.getDay()];
+            
+            // Logika Label: Jika 7 hari pakai "Mon", "Tue". Jika 30 hari pakai format "12 Jun"
+            const dayLabel = filter === '30days' 
+                ? startOfDay.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })
+                : daysOfWeek[startOfDay.getDay()];
 
-            // SESUAIKAN: menggunakan field 'created_at'
+            // Query Buku (peminjaman dibuat)
             const bookingCount = await prisma.peminjaman.count({
-                where: {
-                    created_at: { gte: startOfDay, lte: endOfDay }
-                }
+                where: { created_at: { gte: startOfDay, lte: endOfDay } }
             });
 
-            // SESUAIKAN: Pendapatan dihitung dari akumulasi tabel Denda yang 'sudah_bayar' pada rentang hari tersebut
+            // Query Revenue (denda dibayar)
             const revenueSum = await prisma.denda.aggregate({
                 _sum: { jumlah_denda: true },
                 where: {
@@ -62,104 +68,63 @@ export async function GET(request: Request) {
             chartRevenue.push({ label: dayLabel, value: dailyRevenue });
         }
 
-        const totalBookingsThisWeek = chartBookings.reduce((sum, item) => sum + item.value, 0);
-        const totalRevenueThisWeek = chartRevenue.reduce((sum, item) => sum + item.value, 0);
+        const totalBookings = chartBookings.reduce((sum, item) => sum + item.value, 0);
+        const totalRevenue = chartRevenue.reduce((sum, item) => sum + item.value, 0);
 
-        // 3. Kalkulasi 3 Baris Kartu Stat Kecil di Bawah Grafik
-        // a. Active Students (Menghitung total pengguna dengan role 'CUSTOMER')
-        const activeStudentsCount = await prisma.user.count({
-            where: { role: 'CUSTOMER' }
-        });
+        // 4. Kalkulasi 3 Baris Kartu Stat Kecil di Bawah Grafik
+        const activeStudentsCount = await prisma.user.count({ where: { role: 'CUSTOMER' } });
+        const booksBorrowedCount = await prisma.peminjaman.count({ where: { status: 'dipinjam' } });
+        const penaltyBillCount = await prisma.denda.count({ where: { status_bayar: 'belum_bayar' } });
 
-        // b. Books Borrowed (Menghitung peminjaman aktif yang berstatus 'dipinjam')
-        const booksBorrowedCount = await prisma.peminjaman.count({
-            where: { status: 'dipinjam' }
-        });
-
-        // c. Penalty Bill (Menghitung total denda yang 'belum_bayar')
-        const penaltyBillCount = await prisma.denda.count({
-            where: { status_bayar: 'belum_bayar' }
-        });
-
-        // 4. Mengambil Data Lini Masa "Recent Administrative Actions"
-        // Menyertakan ('include') relasi objek denda untuk mendeteksi log pelunasan uang
-        const recentLogs = await prisma.peminjaman.findMany({
+        // 5. Mengambil Data Lini Masa dari Tabel AuditLog (CCTV)
+        const recentLogs = await prisma.auditLog.findMany({
             take: 5,
-            orderBy: { updated_at: 'desc' },
+            orderBy: { created_at: 'desc' },
             include: {
-                user: { select: { nama: true, npm: true } },
-                buku: { select: { judul: true } },
-                denda: true
+                user: { select: { nama: true } }
             }
         });
 
         const recentActions = recentLogs.map((log) => {
             let type = 'info';
             let title = 'System Update';
-            let description = '';
 
-            // Logika deteksi tipe aksi berdasarkan status peminjaman & denda relasional
-            if (log.denda && log.denda.status_bayar === 'sudah_bayar') {
-                type = 'fine_cleared';
-                title = `Fine Paid & Cleared - ID #${log.kode_peminjaman}`;
-                description = `Rp ${Number(log.denda.jumlah_denda).toLocaleString('id-ID')} paid by ${log.user?.nama || 'Student'} via Cashier.`;
-            } else if (log.status === 'dipinjam') {
-                type = 'borrowed';
-                title = 'Book Borrowed Successfully';
-                description = `${log.user?.nama || 'Student'} borrowed "${log.buku?.judul}" (Due: ${new Date(log.tanggal_kembali).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})`;
-            } else if (log.status === 'terlambat') {
-                type = 'overdue';
-                title = 'Overdue Penalty Issued';
-                description = `${log.user?.nama || 'Student'} - Late return for "${log.buku?.judul}"`;
-            } else if (log.status === 'direservasi') {
-                type = 'reserved';
-                title = 'New Book Reservation';
-                description = `${log.user?.nama || 'Student'} placed a reservation for "${log.buku?.judul}"`;
-            } else if (log.status === 'dibatalkan') {
-                type = 'cancelled';
-                title = 'Reservation Cancelled';
-                description = `Reservation for "${log.buku?.judul}" by ${log.user?.nama || 'Student'} was cancelled.`;
+            // Menyesuaikan ikon frontend berdasarkan jenis Aksi database
+            if (log.aksi === 'CREATE') {
+                type = 'fine_cleared'; // Memunculkan ikon Centang Hijau
+                title = `New ${log.entitas} Created`;
+            } else if (log.aksi === 'UPDATE') {
+                type = 'info'; // Memunculkan ikon Bookmark Biru
+                title = `${log.entitas} Record Updated`;
+            } else if (log.aksi === 'DELETE') {
+                type = 'cancelled'; // Memunculkan ikon X Abu-abu
+                title = `${log.entitas} Data Deleted`;
             }
 
-            return {
-                id: log.id_peminjaman,
-                type,
-                title,
-                description,
-                timestamp: log.updated_at
+            return { 
+                id: log.id_log, 
+                type, 
+                title: title, 
+                description: log.deskripsi, 
+                timestamp: log.created_at.toISOString() 
             };
         });
 
-        // 5. Kembalikan Response Terstruktur
-        return NextResponse.json(
-            {
-                success: true,
-                message: "Data dashboard admin berhasil disinkronkan.",
-                data: {
-                    mainCharts: {
-                        dailyBookings: {
-                            total: totalBookingsThisWeek,
-                            growth: "+12%", 
-                            chartData: chartBookings
-                        },
-                        revenuePerformance: {
-                            total: totalRevenueThisWeek,
-                            chartData: chartRevenue
-                        }
-                    },
-                    smallStats: {
-                        activeStudents: activeStudentsCount,
-                        booksBorrowed: booksBorrowedCount,
-                        penaltyBill: penaltyBillCount
-                    },
-                    recentActions
-                }
-            },
-            { status: 200 }
-        );
+        // 6. Kembalikan Response Terstruktur
+        return NextResponse.json({
+            success: true,
+            data: {
+                mainCharts: {
+                    dailyBookings: { total: totalBookings, growth: "+0%", chartData: chartBookings },
+                    revenuePerformance: { total: totalRevenue, chartData: chartRevenue }
+                },
+                smallStats: { activeStudents: activeStudentsCount, booksBorrowed: booksBorrowedCount, penaltyBill: penaltyBillCount },
+                recentActions
+            }
+        }, { status: 200 });
 
     } catch (error) {
-        console.error("Error on Admin Dashboard API:", error);
+        console.error("Error Admin API:", error);
         return NextResponse.json({ success: false, message: "Internal Server Error" }, { status: 500 });
     }
 }

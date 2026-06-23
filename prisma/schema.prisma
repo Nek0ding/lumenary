@@ -27,6 +27,7 @@ model User {
   peminjaman Peminjaman[]
   ratings Rating[]
   favorit Favorit[]
+  audit_logs AuditLog[]
 }
 
 model Kategori{
@@ -114,6 +115,22 @@ model Favorit{
 
   user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
   buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+}
+
+model AuditLog {
+  id_log      Int      @id @default(autoincrement())
+  id_user     String?  // Nullable: Karena bisa saja aksi dilakukan oleh "Sistem" (otomatis)
+  aksi        String   @db.VarChar(50) 
+  entitas     String   @db.VarChar(50) 
+  id_entitas  String   @db.VarChar(50) 
+  deskripsi   String   @db.Text
+  data_lama   Json?    // Snapshot wujud data SEBELUM diubah/dihapus
+  data_baru   Json?    // Snapshot wujud data SESUDAH ditambah/diubah
+  ip_address  String?  @db.VarChar(45) // Standar keamanan: Melacak IP Address (IPv4/IPv6)
+  user_agent  String?  @db.Text        // Standar keamanan: Melacak Browser/Device yang digunakan
+  created_at  DateTime @default(now())
+
+  user        User?    @relation(fields: [id_user], references: [id_user], onDelete: SetNull)
 }
 
 enum StatusPeminjaman{
