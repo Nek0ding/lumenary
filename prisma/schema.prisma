@@ -12,128 +12,146 @@ datasource db {
 }
 
 model User {
-  id_user String @id
-  nama String? @db.VarChar(100)
-  npm String @unique @db.VarChar(8)
-  no_telp String? @db.VarChar(15)
-  email String @unique @db.VarChar(100)
-  password String @db.VarChar(255)
-  alamat String? @db.Text
+  id_user       String   @id
+  nama          String?  @db.VarChar(100)
+  npm           String   @unique @db.VarChar(8)
+  no_telp       String?  @db.VarChar(15)
+  email         String   @unique @db.VarChar(100)
+  password      String   @db.VarChar(255)
+  alamat        String?  @db.Text
   jenis_kelamin JK?
-  role Role @default(CUSTOMER)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  role          Role     @default(CUSTOMER)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
   peminjaman Peminjaman[]
-  ratings Rating[]
-  favorit Favorit[]
+  ratings    Rating[]
+  favorit    Favorit[]
   audit_logs AuditLog[]
 }
 
-model Kategori{
-  id_kategori Int @id @default(autoincrement())
-  nama_kategori String @db.VarChar(100)
-  deskripsi String @db.Text
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+model Kategori {
+  id_kategori   Int      @id @default(autoincrement())
+  nama_kategori String   @db.VarChar(100)
+  deskripsi     String   @db.Text
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
 
   buku Buku[]
 }
 
-model Buku{
-  id_buku Int @id @default(autoincrement())
-  id_kategori Int
-  judul String @db.VarChar(200)
-  penulis String @db.VarChar(100)
-  penerbit String @db.VarChar(100)
+model Buku {
+  id_buku      Int      @id @default(autoincrement())
+  id_kategori  Int
+  judul        String   @db.VarChar(200)
+  penulis      String   @db.VarChar(100)
+  penerbit     String   @db.VarChar(100)
   tahun_terbit Int
-  isbn String @unique @db.VarChar(30)
-  stok Int
-  cover_buku String @db.VarChar(255)
-  sinopsis String  @db.Text
-  rating_rata Decimal @db.Decimal(2,1)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  isbn         String   @unique @db.VarChar(30)
+  stok         Int      @default(0)
+  cover_buku   String   @db.VarChar(255)
+  sinopsis     String   @db.Text
+  rating_rata  Decimal  @db.Decimal(2, 1)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
 
   kategori Kategori @relation(fields: [id_kategori], references: [id_kategori], onDelete: Cascade)
 
+  items      BukuItem[]
   peminjaman Peminjaman[]
-  ratings Rating[]
-  favorit Favorit[]
+  ratings    Rating[]
+  favorit    Favorit[]
 }
 
-model Peminjaman{
-  id_peminjaman Int @id @default(autoincrement())
-  id_user String
-  id_buku Int
-  kode_peminjaman String @unique
-  tanggal_pinjam DateTime @db.Date
-  tanggal_kembali DateTime @db.Date
-  tanggal_dikembalikan DateTime?
-  status StatusPeminjaman @default(direservasi)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+model BukuItem {
+  id_item        Int        @id @default(autoincrement())
+  id_buku        Int
+  kode_buku      String     @unique @db.VarChar(50) // Label fisik unik buku (Cth: ISBN-001)
+  asal_perolehan String     @db.VarChar(100) // Lacak asal aset ("PEMBELIAN", "HIBAH", dll)
+  status         StatusItem @default(TERSEDIA) // "TERSEDIA", "DIPINJAM", "RUSAK", "HILANG"
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
 
-  user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
-  buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
-  
+  buku       Buku         @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+  peminjaman Peminjaman[]
+}
+
+model Peminjaman {
+  id_peminjaman        Int              @id @default(autoincrement())
+  id_user              String
+  id_buku              Int // Fase 1: Booking judul buku secara online
+  id_item              Int? // Fase 2: Diisi scan barcode fisik saat serah terima oleh Admin
+  kode_peminjaman      String           @unique
+  tanggal_pinjam       DateTime         @db.Date
+  tanggal_kembali      DateTime         @db.Date
+  tanggal_dikembalikan DateTime?        @db.Date
+  status               StatusPeminjaman @default(direservasi)
+  created_at           DateTime         @default(now())
+  updated_at           DateTime         @updatedAt
+
+  user       User      @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
+  buku       Buku      @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+  item_fisik BukuItem? @relation(fields: [id_item], references: [id_item], onDelete: SetNull) // SetNull agar riwayat log pinjam tidak hancur jika aset fisik dihapus/dikoreksi
+
   denda Denda?
 }
 
-model Rating{
-  id_rating Int @id @default(autoincrement())
-  id_user String
-  id_buku Int
-  rating Int 
+model Rating {
+  id_rating  Int      @id @default(autoincrement())
+  id_user    String
+  id_buku    Int
+  rating     Int
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
   buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+  @@unique([id_buku, id_user])
 }
 
-model Denda{
-  id_denda Int @id @default(autoincrement())
-  id_peminjaman Int @unique
-  jumlah_denda Decimal @db.Decimal(10,2)
-  hari_terlambat Int
+model Denda {
+  id_denda         Int             @id @default(autoincrement())
+  id_peminjaman    Int             @unique
+  jumlah_denda     Decimal         @db.Decimal(10, 2)
+  hari_terlambat   Int
   keterangan_denda keteranganDenda @default(tidak_ada)
-  status_bayar StatusBayar @default(belum_bayar)
-  tanggal_bayar DateTime?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  status_bayar     StatusBayar     @default(belum_bayar)
+  tanggal_bayar    DateTime?
+  created_at       DateTime        @default(now())
+  updated_at       DateTime        @updatedAt
 
   peminjaman Peminjaman @relation(fields: [id_peminjaman], references: [id_peminjaman], onDelete: Cascade)
 }
 
-model Favorit{
-  id_favorit Int @id @default(autoincrement())
-  id_user String
-  id_buku Int
+model Favorit {
+  id_favorit Int      @id @default(autoincrement())
+  id_user    String
+  id_buku    Int
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   user User @relation(fields: [id_user], references: [id_user], onDelete: Cascade)
   buku Buku @relation(fields: [id_buku], references: [id_buku], onDelete: Cascade)
+  @@unique([id_user, id_buku])
 }
 
 model AuditLog {
-  id_log      Int      @id @default(autoincrement())
-  id_user     String?  // Nullable: Karena bisa saja aksi dilakukan oleh "Sistem" (otomatis)
-  aksi        String   @db.VarChar(50) 
-  entitas     String   @db.VarChar(50) 
-  id_entitas  String   @db.VarChar(50) 
-  deskripsi   String   @db.Text
-  data_lama   Json?    // Snapshot wujud data SEBELUM diubah/dihapus
-  data_baru   Json?    // Snapshot wujud data SESUDAH ditambah/diubah
-  ip_address  String?  @db.VarChar(45) // Standar keamanan: Melacak IP Address (IPv4/IPv6)
-  user_agent  String?  @db.Text        // Standar keamanan: Melacak Browser/Device yang digunakan
-  created_at  DateTime @default(now())
+  id_log     Int      @id @default(autoincrement())
+  id_user    String? // Nullable: Karena bisa saja aksi dilakukan oleh "Sistem" (otomatis)
+  aksi       String   @db.VarChar(50)
+  entitas    String   @db.VarChar(50)
+  id_entitas String   @db.VarChar(50)
+  deskripsi  String   @db.Text
+  data_lama  Json? // Snapshot wujud data SEBELUM diubah/dihapus
+  data_baru  Json? // Snapshot wujud data SESUDAH ditambah/diubah
+  ip_address String?  @db.VarChar(45) // Standar keamanan: Melacak IP Address (IPv4/IPv6)
+  user_agent String?  @db.Text // Standar keamanan: Melacak Browser/Device yang digunakan
+  created_at DateTime @default(now())
 
-  user        User?    @relation(fields: [id_user], references: [id_user], onDelete: SetNull)
+  user User? @relation(fields: [id_user], references: [id_user], onDelete: SetNull)
 }
 
-enum StatusPeminjaman{
+enum StatusPeminjaman {
   direservasi
   dibatalkan
   dipinjam
@@ -141,22 +159,29 @@ enum StatusPeminjaman{
   terlambat
 }
 
-enum StatusBayar{
+enum StatusItem {
+  TERSEDIA
+  DIPINJAM
+  RUSAK
+  HILANG
+}
+
+enum StatusBayar {
   belum_bayar
   sudah_bayar
 }
 
-enum Role{
+enum Role {
   CUSTOMER
   ADMIN
 }
 
-enum JK{
+enum JK {
   L
   P
 }
 
-enum keteranganDenda{
+enum keteranganDenda {
   tidak_ada
   sobek
   noda
