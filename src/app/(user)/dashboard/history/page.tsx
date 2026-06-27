@@ -2,9 +2,18 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Loader2, BookOpen, AlertTriangle } from 'lucide-react';
-// 1. Tambahkan import react-hot-toast di sini
+import { X, Loader2, BookOpen, AlertTriangle, Star } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+
+// Denda sebagai object sesuai response API
+interface DendaItem {
+    id_denda: number;
+    jumlah_denda: number;
+    hari_terlambat: number;
+    keterangan_denda: string;
+    status_bayar: string;
+    tanggal_bayar: string | null;
+}
 
 interface LoanItem {
     id_peminjaman: number;
@@ -18,21 +27,12 @@ interface LoanItem {
     tanggal_pinjam: string;
     tanggal_kembali: string;
     status: string;
-    denda?: number;
+    denda?: DendaItem | null;
+    kode_buku_fisik?: string | null;
 }
 
-// ── Confirmation Dialog ──────────────────────────────────────────────────────
-function ConfirmCancelDialog({
-    bookTitle,
-    onConfirm,
-    onClose,
-    isLoading,
-}: {
-    bookTitle: string;
-    onConfirm: () => void;
-    onClose: () => void;
-    isLoading: boolean;
-}) {
+// ── Confirmation Cancel Dialog ───────────────────────────────────────────────
+function ConfirmCancelDialog({ bookTitle, onConfirm, onClose, isLoading }: any) {
     return (
         <div className="fixed inset-0 z-[999995] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white rounded-[24px] w-full max-w-[420px] shadow-2xl p-8 flex flex-col gap-6 animate-in zoom-in-95 duration-200">
@@ -52,20 +52,66 @@ function ConfirmCancelDialog({
                     </div>
                 </div>
                 <div className="flex gap-3">
-                    <button
-                        onClick={onClose}
-                        disabled={isLoading}
-                        className="flex-1 py-3 rounded-xl border-2 border-zinc-200 text-zinc-700 font-bold text-[15px] hover:bg-zinc-50 transition-all disabled:opacity-50"
-                    >
+                    <button onClick={onClose} disabled={isLoading} className="flex-1 py-3 rounded-xl border-2 border-zinc-200 text-zinc-700 font-bold text-[15px] hover:bg-zinc-50 transition-all disabled:opacity-50">
                         Keep It
                     </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={isLoading}
-                        className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[15px] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
+                    <button onClick={onConfirm} disabled={isLoading} className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[15px] transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed">
                         {isLoading && <Loader2 size={18} className="animate-spin" />}
                         {isLoading ? 'Cancelling...' : 'Yes, Cancel'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Rate Book Dialog ─────────────────────────────────────────────────────────
+function ReviewDialog({ bookTitle, ratingValue, setRatingValue, onConfirm, onClose, isLoading }: any) {
+    return (
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-[28px] w-full max-w-[400px] shadow-2xl p-8 flex flex-col gap-6 animate-in zoom-in-95 duration-200 text-center">
+                
+                <div className="flex flex-col gap-2">
+                    <h3 className="text-[24px] font-extrabold text-black">Rate Your Read</h3>
+                    <p className="text-[14px] text-zinc-500 font-medium leading-relaxed">
+                        How many stars would you give to <br/>
+                        <span className="font-bold text-[#161B85]">"{bookTitle}"</span>?
+                    </p>
+                </div>
+
+                {/* 5 Stars Interactive */}
+                <div className="flex justify-center gap-3 my-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                            key={star}
+                            type="button"
+                            onClick={() => setRatingValue(star)}
+                            className="transition-transform hover:scale-110 active:scale-90 focus:outline-none"
+                        >
+                            <Star
+                                size={44}
+                                className={`transition-colors duration-200 ${
+                                    star <= ratingValue 
+                                        ? "text-[#FFD700] fill-[#FFD700] drop-shadow-md" 
+                                        : "text-zinc-200 fill-zinc-50"
+                                }`}
+                            />
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex gap-3 mt-2">
+                    <button onClick={onClose} disabled={isLoading} className="flex-1 py-3.5 rounded-xl bg-zinc-100 text-zinc-700 font-bold text-[15px] hover:bg-zinc-200 transition-all disabled:opacity-50">
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={onConfirm} 
+                        disabled={isLoading || ratingValue === 0} 
+                        className="flex-1 py-3.5 rounded-xl text-white font-bold text-[15px] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                        style={{ background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)' }}
+                    >
+                        {isLoading && <Loader2 size={18} className="animate-spin" />}
+                        {isLoading ? 'Submitting...' : 'Submit Rating'}
                     </button>
                 </div>
             </div>
@@ -89,19 +135,21 @@ export default function HistoryPage() {
     const [cancelTarget, setCancelTarget] = useState<LoanItem | null>(null);
     const [isCancelling, setIsCancelling] = useState(false);
 
+    // Review state
+    const [reviewTarget, setReviewTarget] = useState<LoanItem | null>(null);
+    const [ratingValue, setRatingValue] = useState(0);
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
     const fetchHistoryData = useCallback(async () => {
         const token = localStorage.getItem('lumenary_token');
-        const userStr = localStorage.getItem('lumenary_user');
 
-        if (!token || !userStr) {
+        if (!token) {
             router.replace('/login');
             return;
         }
 
-        const user = JSON.parse(userStr);
-
         try {
-            const res = await fetch(`/api/user/history?npm=${user.npm}`, {
+            const res = await fetch(`/api/user/history`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -116,8 +164,7 @@ export default function HistoryPage() {
                 setPastLoans(resData.data?.past || []);
             } else {
                 if (res.status === 401 || res.status === 403) {
-                    localStorage.removeItem('lumenary_token');
-                    localStorage.removeItem('lumenary_user');
+                    localStorage.clear();
                     router.replace('/login');
                     return;
                 }
@@ -138,8 +185,6 @@ export default function HistoryPage() {
     const handleConfirmCancel = async () => {
         if (!cancelTarget) return;
         setIsCancelling(true);
-        
-        // 2. Gunakan toast.loading bawaan react-hot-toast
         const loadingToast = toast.loading('Cancelling reservation...');
 
         try {
@@ -158,13 +203,11 @@ export default function HistoryPage() {
             if (res.ok && data.success) {
                 setCancelTarget(null);
                 setSelectedLoan(null);
-                // 3. Ubah jadi toast.success
                 toast.success('Reservation successfully cancelled.', { id: loadingToast });
                 setActiveTab('history');
                 fetchHistoryData();
             } else {
                 setCancelTarget(null);
-                // 4. Ubah jadi toast.error
                 toast.error(data.message || 'Failed to cancel reservation.', { id: loadingToast });
             }
         } catch {
@@ -172,6 +215,39 @@ export default function HistoryPage() {
             toast.error('Network error. Please try again.', { id: loadingToast });
         } finally {
             setIsCancelling(false);
+        }
+    };
+
+    const handleSubmitReview = async () => {
+        if (!reviewTarget || ratingValue === 0) return;
+        setIsSubmittingReview(true);
+        const loadingToast = toast.loading('Submitting rating...');
+
+        try {
+            const token = localStorage.getItem('lumenary_token');
+            const res = await fetch('/api/user/review', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    id_buku: reviewTarget.id_buku,
+                    rating: ratingValue
+                })
+            });
+
+            const data = await res.json();
+            if (res.ok && data.success) {
+                toast.success('Thank you for rating!', { id: loadingToast });
+                setReviewTarget(null);
+            } else {
+                toast.error(data.message || 'Failed to submit rating.', { id: loadingToast });
+            }
+        } catch {
+            toast.error('Network error. Please try again.', { id: loadingToast });
+        } finally {
+            setIsSubmittingReview(false);
         }
     };
 
@@ -220,14 +296,14 @@ export default function HistoryPage() {
     };
 
     if (loading) return (
-        <div className="flex h-[70vh] w-full text-black items-center justify-center gap-3">
+        <div className="flex h-[70vh] w-full text-black items-center justify-center gap-3 font-['Plus_Jakarta_Sans',sans-serif]">
             <Loader2 className="w-8 h-8 text-[#161B85] animate-spin" />
             <span className="font-medium text-zinc-500">Loading history...</span>
         </div>
     );
 
     if (error) return (
-        <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-4 text-red-500 font-semibold">
+        <div className="flex h-[50vh] w-full flex-col items-center justify-center gap-4 text-red-500 font-semibold font-['Plus_Jakarta_Sans',sans-serif]">
             <p className="flex items-center gap-2">⚠️ {error}</p>
             <button onClick={() => window.location.reload()} className="text-[13px] bg-zinc-200 text-zinc-700 px-6 py-2 rounded-lg hover:bg-zinc-300 transition-all font-bold">Try again</button>
         </div>
@@ -238,14 +314,25 @@ export default function HistoryPage() {
     return (
         <div className="flex flex-col gap-6 w-full max-w-[900px] font-['Plus_Jakarta_Sans',sans-serif]">
 
-            {/* Komponen ToastContainer dihapus dan digantikan oleh Toaster di root/layout */}
-
+            {/* Cancel Modal */}
             {cancelTarget && (
                 <ConfirmCancelDialog
                     bookTitle={cancelTarget.judul}
                     onConfirm={handleConfirmCancel}
                     onClose={() => setCancelTarget(null)}
                     isLoading={isCancelling}
+                />
+            )}
+
+            {/* Review Modal */}
+            {reviewTarget && (
+                <ReviewDialog
+                    bookTitle={reviewTarget.judul}
+                    ratingValue={ratingValue}
+                    setRatingValue={setRatingValue}
+                    onConfirm={handleSubmitReview}
+                    onClose={() => { setReviewTarget(null); setRatingValue(0); }}
+                    isLoading={isSubmittingReview}
                 />
             )}
 
@@ -279,32 +366,26 @@ export default function HistoryPage() {
                 ) : (
                     displayedData.map((loan) => {
                         const statusInfo = getStatusInfo(loan.tanggal_kembali, loan.status);
-                        const bookData = (loan as any).buku || {};
                         const isReservedOrCanceled = ['direservasi', 'dibatalkan'].includes(loan.status);
 
                         return (
                             <div
                                 key={loan.id_peminjaman}
-                                onClick={() => setSelectedLoan({
-                                    ...loan,
-                                    judul: bookData.judul || loan.judul,
-                                    penulis: bookData.penulis || loan.penulis,
-                                    cover_buku: bookData.cover_buku || loan.cover_buku
-                                })}
+                                onClick={() => setSelectedLoan(loan)}
                                 className="bg-white rounded-[24px] md:rounded-[32px] p-5 md:p-6 flex flex-col sm:flex-row gap-5 md:gap-8 shadow-[0px_2px_8px_rgba(0,0,0,0.04)] border border-zinc-100 hover:shadow-[0px_8px_24px_rgba(0,0,0,0.08)] hover:-translate-y-1 cursor-pointer transition-all duration-300"
                             >
                                 <div className="w-[100px] md:w-[130px] aspect-[2/3] shrink-0 bg-zinc-100 rounded-xl md:rounded-2xl overflow-hidden shadow-sm mx-auto sm:mx-0 border border-zinc-100">
-                                    <img src={bookData.cover_buku || loan.cover_buku || "/placeholder-cover.jpg"} alt={bookData.judul || loan.judul} className="w-full h-full object-cover" />
+                                    <img src={loan.cover_buku || "/placeholder-cover.jpg"} alt={loan.judul} className="w-full h-full object-cover" />
                                 </div>
                                 <div className="flex flex-col flex-1 py-1 justify-between">
                                     <div className="flex flex-col">
                                         <div className="flex justify-between items-start gap-4">
-                                            <h3 className="text-[20px] md:text-[24px] font-bold text-black leading-tight line-clamp-1 sm:line-clamp-2">{bookData.judul || loan.judul}</h3>
+                                            <h3 className="text-[20px] md:text-[24px] font-bold text-black leading-tight line-clamp-1 sm:line-clamp-2">{loan.judul}</h3>
                                             <span className={`shrink-0 text-[11px] md:text-[12px] font-bold px-3 py-1 rounded-md ${statusInfo.color}`}>
                                                 {statusInfo.text}
                                             </span>
                                         </div>
-                                        <p className="text-[14px] md:text-[16px] text-zinc-500 font-medium mt-1">{bookData.penulis || loan.penulis}</p>
+                                        <p className="text-[14px] md:text-[16px] text-zinc-500 font-medium mt-1">{loan.penulis}</p>
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-2 mt-5 sm:mt-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-zinc-100">
                                         <div className="flex flex-col gap-0.5">
@@ -356,16 +437,25 @@ export default function HistoryPage() {
                                     </span>
                                     <h2 className="text-[24px] font-bold text-black leading-tight mb-1">{selectedLoan.judul}</h2>
                                     <p className="text-[16px] text-zinc-500 font-medium">{selectedLoan.penulis}</p>
+                                    
                                     <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between">
                                         <span className="text-[13px] font-bold text-blue-800 uppercase">Booking Code</span>
                                         <span className="text-[20px] font-black text-[#161B85] tracking-[0.2em]">{selectedLoan.kode_peminjaman}</span>
                                     </div>
+
+                                    {selectedLoan.kode_buku_fisik && (
+                                        <div className="mt-2 bg-purple-50 border border-purple-100 rounded-xl p-3 flex items-center justify-between">
+                                            <span className="text-[13px] font-bold text-purple-800 uppercase">Physical Book Code</span>
+                                            <span className="text-[18px] font-black text-[#6B21A8]">
+                                                {selectedLoan.kode_buku_fisik}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
                             <div className="w-full h-[1px] bg-zinc-100"></div>
 
-                            {/* Detail Grid */}
                             <div className="grid grid-cols-2 gap-y-6 gap-x-4">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">
@@ -389,29 +479,44 @@ export default function HistoryPage() {
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[12px] text-zinc-500 font-bold uppercase tracking-wider">Penalty Amount</span>
-                                    <span className={`text-[16px] font-black ${selectedLoan.denda && selectedLoan.denda > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                        {formatRupiah(selectedLoan.denda || 0)}
+                                    <span className={`text-[16px] font-black ${selectedLoan.denda && selectedLoan.denda.jumlah_denda > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {formatRupiah(selectedLoan.denda?.jumlah_denda || 0)}
                                     </span>
                                 </div>
                             </div>
 
                             {/* Action Buttons */}
-                            <div className="pt-4 border-t border-zinc-100 mt-2 flex flex-col gap-3">
+                            <div className="pt-4 border-t border-zinc-100 mt-2 flex flex-col sm:flex-row gap-3">
                                 {selectedLoan.status === 'direservasi' && (
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setCancelTarget(selectedLoan);
                                         }}
-                                        className="w-full py-4 rounded-xl border-2 border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-[16px] transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2"
+                                        className="flex-1 py-4 rounded-xl border-2 border-red-200 text-red-600 bg-red-50 hover:bg-red-100 font-bold text-[16px] transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2"
                                     >
-                                        <X size={18} />
-                                        Cancel Reservation
+                                        <X size={18} /> Cancel Reservation
                                     </button>
                                 )}
+
+                                {/* Tombol Rate This Book Muncul Jika Sudah Dikembalikan */}
+                                {selectedLoan.status === 'dikembalikan' && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setReviewTarget(selectedLoan);
+                                            setRatingValue(0);
+                                        }}
+                                        className="flex-1 py-4 rounded-xl border-2 border-yellow-300 text-yellow-600 bg-yellow-50 hover:bg-yellow-100 font-bold text-[16px] transition-all hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        <Star size={18} className="fill-yellow-500 text-yellow-500" /> 
+                                        Rate This Book
+                                    </button>
+                                )}
+
                                 <button
                                     onClick={() => setSelectedLoan(null)}
-                                    className="w-full py-4 rounded-xl text-white font-bold text-[16px] transition-all hover:-translate-y-0.5 shadow-lg active:scale-95"
+                                    className="flex-1 py-4 rounded-xl text-white font-bold text-[16px] transition-all hover:-translate-y-0.5 shadow-lg active:scale-95"
                                     style={{ background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)' }}
                                 >
                                     Close Details

@@ -33,3 +33,7 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+.hot-toast-container {
+  z-index: 9999999 !important;
+}

@@ -1,60 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request: Request) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
-        // ==========================================
-        // 1. VALIDASI TOKEN JWT (AUTHENTICATION)
-        // ==========================================
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: "Akses ditolak! Token tidak valid." }, { status: 401 });
-        }
-
-        const token = authHeader.split(' ')[1];
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-
-        if (authError || !authUser || !authUser.email) {
-            return NextResponse.json({ success: false, message: "Access denied! Token expired or Not valid." }, { status: 401 });
-        }
+        const userId = auth.id_user;
 
         // ==========================================
-        // 2. AMBIL & VALIDASI PARAMETER URL
-        // ==========================================
-        const { searchParams } = new URL(request.url);
-        const requestedNpm = searchParams.get('npm');
-
-        if (!requestedNpm) {
-            return NextResponse.json({ success: false, message: "Parameter NPM tidak ditemukan!" }, { status: 400 });
-        }
-
-        // ==========================================
-        // 3. CEK KEPEMILIKAN DATA (AUTHORIZATION / IDOR PROTECTION)
-        // ==========================================
-        const dbUser = await prisma.user.findUnique({
-            where: { email: authUser.email }
-        });
-
-        if (!dbUser) {
-            return NextResponse.json({ success: false, message: "User tidak ditemukan di database!" }, { status: 404 });
-        }
-
-        if (dbUser.npm !== requestedNpm) {
-            return NextResponse.json(
-                { success: false, message: "Akses Terlarang! Anda tidak diizinkan melihat data milik mahasiswa lain." },
-                { status: 403 }
-            );
-        }
-
-        const userId = dbUser.id_user;
-
-        // ==========================================
-        // 4. JALANKAN QUERY DATABASE
+        // JALANKAN QUERY DATABASE
         // ==========================================
         const [
             booksHandledCount,
@@ -88,12 +44,12 @@ export async function GET(request: Request) {
         const currentReadingRaw = await prisma.peminjaman.findMany({
             where: {
                 id_user: userId,
-                // Tambahkan 'direservasi' agar pinjaman baru langsung muncul di dashboard
                 status: { in: ['direservasi', 'dipinjam', 'terlambat'] }
             },
             include: {
                 buku: { include: { kategori: true } },
-                denda: true // Ambil data denda dari database
+                denda: true,
+                item_fisik: true
             },
             orderBy: { tanggal_kembali: 'asc' }
         });
@@ -105,7 +61,7 @@ export async function GET(request: Request) {
         });
 
         // ==========================================
-        // 5. KEMBALIKAN RESPONSE
+        // KEMBALIKAN RESPONSE
         // ==========================================
         return NextResponse.json({
             success: true,
@@ -128,10 +84,10 @@ export async function GET(request: Request) {
                     stok: pinjam.buku.stok,
                     isbn: pinjam.buku.isbn,
                     sinopsis: pinjam.buku.sinopsis,
-                    // Penambahan data pelengkap untuk Modal
                     kode_peminjaman: pinjam.kode_peminjaman,
                     tanggal_pinjam: pinjam.tanggal_pinjam,
-                    denda: pinjam.denda ? Number(pinjam.denda.jumlah_denda) : 0
+                    denda: pinjam.denda ? Number(pinjam.denda.jumlah_denda) : 0,
+                    kode_buku_fisik: pinjam.item_fisik ? pinjam.item_fisik.kode_buku : null,
                 })),
                 recommended: recommendedRaw.map(buku => ({
                     id: buku.id_buku,
