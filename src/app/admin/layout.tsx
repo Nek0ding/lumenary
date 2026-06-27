@@ -73,7 +73,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         { name: 'Inventory', href: '/admin/inventory', icon: <Archive size={22} /> },
         { name: 'Counter', href: '/admin/counter', icon: <Store size={22} /> },
         { name: 'Student', href: '/admin/student', icon: <GraduationCap size={22} /> },
-        { name: 'Staff', href: '/admin/staff', icon: <UserCog size={22} /> },
+        { name: 'Staff', href: '/admin/admin-list', icon: <UserCog size={22} /> },
     ];
 
     return (

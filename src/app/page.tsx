@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Star, Search, Menu } from 'lucide-react'; 
+import { X, Star, Search, Menu } from 'lucide-react';
 import Link from 'next/link';
 
 type Book = {
@@ -111,10 +111,16 @@ export default function LandingPage() {
 
   const getStarted = () => {
     const token = localStorage.getItem('lumenary_token');
-    if (!token) {
-      router.push('/login');
+    if (token) {
+      const user = JSON.parse(token);
+      // Cek role dari data user yang tersimpan
+      if (user.role === 'ADMIN') {
+        router.push('/admin/dashboard'); // Arahkan ke dashboard admin
+      } else {
+        router.push('/dashboard');       // Arahkan ke dashboard user biasa
+      }
     } else {
-      router.push('/dashboard');
+      router.push('/login');
     }
   };
 
@@ -238,36 +244,36 @@ export default function LandingPage() {
 
       {/* OVERLAY MOBILE MENU */}
       {isMobileMenuOpen && (
-        <div 
-            className="fixed inset-0 bg-black/50 z-[99990] lg:hidden backdrop-blur-sm"
-            onClick={() => setIsMobileMenuOpen(false)}
+        <div
+          className="fixed inset-0 bg-black/50 z-[99990] lg:hidden backdrop-blur-sm"
+          onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
       {/* MOBILE MENU DROPDOWN */}
       <div className={`lg:hidden fixed top-0 right-0 w-[70%] max-w-[300px] h-full bg-white shadow-2xl z-[99995] transform transition-transform duration-300 ease-in-out flex flex-col font-['Plus_Jakarta_Sans',sans-serif]
           ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="flex justify-end p-5">
-              <button onClick={() => setIsMobileMenuOpen(false)} className="text-zinc-500 hover:text-red-500">
-                  <X size={28} />
-              </button>
-          </div>
-          <div className="flex flex-col px-6 gap-4">
-              <Link href="/" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#161B85]">Home</Link>
-              <Link href="/explore" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#020617]">Explore Books</Link>
-              <Link href="#features" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#020617]">Features</Link>
-              <Link href="#about" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#020617]">About</Link>
-              
-              <div className="h-px bg-zinc-100 my-4 w-full"></div>
-              
-              <button
-                  onClick={() => { setIsMobileMenuOpen(false); getStarted(); }}
-                  className="w-full py-3.5 rounded-xl text-white font-bold text-[16px] shadow-md"
-                  style={{ background: 'linear-gradient(180deg, #DDDEF2 10%, #3037B4 76%, #101464 100%)' }}
-              >
-                  Sign In / Get Started
-              </button>
-          </div>
+        <div className="flex justify-end p-5">
+          <button onClick={() => setIsMobileMenuOpen(false)} className="text-zinc-500 hover:text-red-500">
+            <X size={28} />
+          </button>
+        </div>
+        <div className="flex flex-col px-6 gap-4">
+          <Link href="/" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#161B85]">Home</Link>
+          <Link href="/explore" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#020617]">Explore Books</Link>
+          <Link href="#features" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#020617]">Features</Link>
+          <Link href="#about" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-[18px] font-bold text-[#020617]">About</Link>
+
+          <div className="h-px bg-zinc-100 my-4 w-full"></div>
+
+          <button
+            onClick={() => { setIsMobileMenuOpen(false); getStarted(); }}
+            className="w-full py-3.5 rounded-xl text-white font-bold text-[16px] shadow-md"
+            style={{ background: 'linear-gradient(180deg, #DDDEF2 10%, #3037B4 76%, #101464 100%)' }}
+          >
+            Get Started
+          </button>
+        </div>
       </div>
 
       {/* ================= CONTAINER HALAMAN UTAMA ================= */}
@@ -283,7 +289,7 @@ export default function LandingPage() {
             <div className="absolute pointer-events-none hidden md:block rounded-tl-[40px]" style={{ width: '746px', height: '194px', left: '503px', top: '0px', background: 'linear-gradient(93deg, #FFF0F6 6.55%, #E68AAF 97.08%)', filter: 'blur(50px)', zIndex: 0 }} />
 
             <div className="relative z-10 w-full flex flex-col justify-between flex-1 gap-10">
-              
+
               {/* NAVBAR */}
               <div className="w-full flex items-center justify-between gap-4 cursor-pointer">
                 <div className="flex items-center gap-2 md:gap-3" onClick={landingPage}>
@@ -310,11 +316,11 @@ export default function LandingPage() {
                   >
                     Get Started
                   </button>
-                  <button 
-                      className="lg:hidden relative z-50 text-[#161B85] p-2 rounded-lg bg-white/40 backdrop-blur-sm border border-white/50"
-                      onClick={(e) => { e.stopPropagation(); setIsMobileMenuOpen(true); }}
+                  <button
+                    className="lg:hidden relative z-50 text-[#161B85] p-2 rounded-lg bg-white/40 backdrop-blur-sm border border-white/50"
+                    onClick={(e) => { e.stopPropagation(); setIsMobileMenuOpen(true); }}
                   >
-                      <Menu size={24} />
+                    <Menu size={24} />
                   </button>
                 </div>
               </div>
@@ -439,35 +445,35 @@ export default function LandingPage() {
           {/* ================= FOOTER ================= */}
           <footer className="w-full pt-8 pb-4 flex flex-col items-center border-t border-zinc-100 text-zinc-500 font-medium px-2 md:px-0">
             <div className="w-full max-w-[1200px] flex flex-col gap-[24px] md:gap-[32px]">
-                <div className="flex flex-col lg:flex-row justify-between items-start gap-8 lg:gap-[32px]">
+              <div className="flex flex-col lg:flex-row justify-between items-start gap-8 lg:gap-[32px]">
                 <div className="flex flex-col gap-[12px] max-w-[460px]">
-                    <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                     <img className="w-[36px] h-[36px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
                     <div className="flex flex-col gap-[2px]">
-                        <span className="text-[#161B85] text-[20px] md:text-[24px] font-bold leading-none">Lumenary</span>
-                        <span className="text-[#492073] text-[7px] md:text-[8px] font-bold uppercase tracking-[0.05em] leading-none">GUNADARMA LIBRARY</span>
+                      <span className="text-[#161B85] text-[20px] md:text-[24px] font-bold leading-none">Lumenary</span>
+                      <span className="text-[#492073] text-[7px] md:text-[8px] font-bold uppercase tracking-[0.05em] leading-none">GUNADARMA LIBRARY</span>
                     </div>
-                    </div>
-                    <p className="text-zinc-600 text-[13px] sm:text-[14px] md:text-[16px] font-medium leading-relaxed mt-2">Gunadarma University library application that provides online library book booking services to Gunadarma University students.</p>
+                  </div>
+                  <p className="text-zinc-600 text-[13px] sm:text-[14px] md:text-[16px] font-medium leading-relaxed mt-2">Gunadarma University library application that provides online library book booking services to Gunadarma University students.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-x-8 md:gap-x-[48px] gap-y-[12px] text-[13px] sm:text-[14px] md:text-[16px] text-zinc-600 w-full lg:w-auto mt-2 lg:mt-0">
-                    <div className="flex flex-col gap-[12px] md:gap-[16px]">
+                  <div className="flex flex-col gap-[12px] md:gap-[16px]">
                     <a href="#" className="hover:text-black font-medium">Home</a>
                     <a href="#" className="hover:text-black font-medium">Explore Books</a>
                     <a href="#" className="hover:text-black font-medium">About Us</a>
                     <a href="#" className="hover:text-black font-medium">FAQ</a>
-                    </div>
-                    <div className="flex flex-col gap-[12px] md:gap-[16px]">
+                  </div>
+                  <div className="flex flex-col gap-[12px] md:gap-[16px]">
                     <a href="#" className="hover:text-black font-medium">Book Reservation</a>
                     <a href="#" className="hover:text-black font-medium">Seat Booking</a>
                     <a href="#" className="hover:text-black font-medium">Loan Rules</a>
-                    </div>
+                  </div>
                 </div>
-                </div>
-                <div className="w-full flex flex-col sm:flex-row justify-between items-center text-[12px] sm:text-[13px] md:text-[16px] font-medium border-t border-zinc-100 pt-5 text-zinc-600 gap-2 sm:gap-0">
+              </div>
+              <div className="w-full flex flex-col sm:flex-row justify-between items-center text-[12px] sm:text-[13px] md:text-[16px] font-medium border-t border-zinc-100 pt-5 text-zinc-600 gap-2 sm:gap-0">
                 <span>© Copyrights - All Right Reserved 2026</span>
                 <span>Developed by Group 5, Gunadarma University</span>
-                </div>
+              </div>
             </div>
           </footer>
         </div>
