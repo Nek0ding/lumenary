@@ -36,6 +36,13 @@ export default function UserLayout({ children }: { children: React.ReactNode }) 
                 router.replace('/login');
                 return;
             }
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                // Jika Admin nyasar ke dashboard user, paksa pindah
+                if (user.role === 'ADMIN' && !window.location.pathname.startsWith('/admin')) {
+                    router.replace('/admin/dashboard');
+                }
+            }
 
             const { data: { user }, error } = await supabase.auth.getUser(token);
 

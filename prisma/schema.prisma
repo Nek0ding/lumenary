@@ -66,9 +66,9 @@ model Buku {
 model BukuItem {
   id_item        Int        @id @default(autoincrement())
   id_buku        Int
-  kode_buku      String     @unique @db.VarChar(50) // Label fisik unik buku (Cth: ISBN-001)
-  asal_perolehan String     @db.VarChar(100) // Lacak asal aset ("PEMBELIAN", "HIBAH", dll)
-  status         StatusItem @default(TERSEDIA) // "TERSEDIA", "DIPINJAM", "RUSAK", "HILANG"
+  kode_buku      String     @unique @db.VarChar(50)
+  asal_perolehan String     @db.VarChar(100)
+  status         StatusItem @default(TERSEDIA)
   created_at     DateTime   @default(now())
   updated_at     DateTime   @updatedAt
 
@@ -79,8 +79,8 @@ model BukuItem {
 model Peminjaman {
   id_peminjaman        Int              @id @default(autoincrement())
   id_user              String
-  id_buku              Int // Fase 1: Booking judul buku secara online
-  id_item              Int? // Fase 2: Diisi scan barcode fisik saat serah terima oleh Admin
+  id_buku              Int
+  id_item              Int?
   kode_peminjaman      String           @unique
   tanggal_pinjam       DateTime         @db.Date
   tanggal_kembali      DateTime         @db.Date
@@ -137,15 +137,15 @@ model Favorit {
 
 model AuditLog {
   id_log     Int      @id @default(autoincrement())
-  id_user    String? // Nullable: Karena bisa saja aksi dilakukan oleh "Sistem" (otomatis)
+  id_user    String?
   aksi       String   @db.VarChar(50)
   entitas    String   @db.VarChar(50)
   id_entitas String   @db.VarChar(50)
   deskripsi  String   @db.Text
-  data_lama  Json? // Snapshot wujud data SEBELUM diubah/dihapus
-  data_baru  Json? // Snapshot wujud data SESUDAH ditambah/diubah
-  ip_address String?  @db.VarChar(45) // Standar keamanan: Melacak IP Address (IPv4/IPv6)
-  user_agent String?  @db.Text // Standar keamanan: Melacak Browser/Device yang digunakan
+  data_lama  Json?
+  data_baru  Json?
+  ip_address String?  @db.VarChar(45)
+  user_agent String?  @db.Text
   created_at DateTime @default(now())
 
   user User? @relation(fields: [id_user], references: [id_user], onDelete: SetNull)

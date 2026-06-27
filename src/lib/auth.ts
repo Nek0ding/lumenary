@@ -12,6 +12,7 @@ const supabase = createClient(
 export interface AuthPayload {
     id_user: string;
     role: "CUSTOMER" | "ADMIN";
+    nama: string | null;
 }
 
 /**
@@ -49,7 +50,7 @@ export async function requireAuth(request: Request): Promise<AuthPayload | NextR
     // Ambil data user dari database (validasi npm/email sekaligus)
     const dbUser = await prisma.user.findUnique({
         where: { email: user.email! },
-        select: { id_user: true, role: true }
+        select: { id_user: true, role: true, nama: true }
     });
 
     if (!dbUser) {
@@ -61,7 +62,8 @@ export async function requireAuth(request: Request): Promise<AuthPayload | NextR
 
     return {
         id_user: dbUser.id_user,
-        role: dbUser.role
+        role: dbUser.role,
+        nama: dbUser.nama,
     };
 }
 
