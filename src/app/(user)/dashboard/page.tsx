@@ -24,6 +24,7 @@ interface CurrentReadingItem {
     tanggal_pinjam?: string;
     denda?: number;
     kode_peminjaman?: string;
+    kode_buku_fisik?: string | null;
 }
 
 interface RecommendedItem {
@@ -165,43 +166,51 @@ export default function DashboardPage() {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
 
-        if (token && userStr) {
-            const user = JSON.parse(userStr);
-            setUserName(user.nama || 'User');
-
-            try {
-                const res = await fetch(`/api/user/dashboard?npm=${user.npm}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const resData = await res.json();
-
-                if (res.ok && resData.success) {
-                    setStats(resData.data.stats);
-                    setCurrentReading(resData.data.currentReading || []);
-                    setRecommended(resData.data.recommended || []);
-                } else {
-                    if (res.status === 401 || res.status === 403) {
-                        localStorage.removeItem('lumenary_token');
-                        localStorage.removeItem('lumenary_user');
-                        router.replace('/login');
-                        return;
-                    }
-                    setError(resData.message || 'Gagal memuat data dashboard.');
-                }
-            } catch (err) {
-                console.error('Error fetching dashboard:', err);
-                setError('Terjadi kesalahan jaringan atau server.');
-            } finally {
-                setLoading(false);
-            }
-        } else {
+        if (!token) {
             setLoading(false);
             router.replace('/login');
+            return;
+        }
+
+        // Nama hanya untuk display — bukan untuk otorisasi
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                setUserName(user.nama || 'User');
+            } catch {
+                // Abaikan jika parsing gagal
+            }
+        }
+
+        try {
+            // npm tidak dikirim — identity murni dari token di server
+            const res = await fetch('/api/user/dashboard', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const resData = await res.json();
+
+            if (res.ok && resData.success) {
+                setStats(resData.data.stats);
+                setCurrentReading(resData.data.currentReading || []);
+                setRecommended(resData.data.recommended || []);
+            } else {
+                if (res.status === 401 || res.status === 403) {
+                    localStorage.clear();
+                    router.replace('/login');
+                    return;
+                }
+                setError(resData.message || 'Gagal memuat data dashboard.');
+            }
+        } catch (err) {
+            console.error('Error fetching dashboard:', err);
+            setError('Terjadi kesalahan jaringan atau server.');
+        } finally {
+            setLoading(false);
         }
     }, [router]);
 
@@ -250,11 +259,10 @@ export default function DashboardPage() {
         });
     };
 
-    // Fungsi Pembantu H+1 untuk Pickup Deadline
     const getPickupDeadline = (dateString: string | undefined | null) => {
         if (!dateString) return '-';
         const date = new Date(dateString);
-        date.setDate(date.getDate() + 1); // Tambah 1 hari
+        date.setDate(date.getDate() + 1);
         return formatDate(date.toISOString());
     };
 
@@ -563,10 +571,20 @@ export default function DashboardPage() {
                                     </span>
                                     <h2 className="text-[24px] font-bold text-black leading-tight mb-1">{selectedLoan.title}</h2>
                                     <p className="text-[16px] text-zinc-500 font-medium">{selectedLoan.author}</p>
+
                                     <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between">
                                         <span className="text-[13px] font-bold text-blue-800 uppercase">Booking Code</span>
                                         <span className="text-[20px] font-black text-[#161B85] tracking-[0.2em]">{selectedLoan.kode_peminjaman || '-'}</span>
                                     </div>
+
+                                    {['dipinjam', 'terlambat'].includes(selectedLoan.status) && (
+                                        <div className="mt-2 bg-purple-50 border border-purple-100 rounded-xl p-3 flex items-center justify-between">
+                                            <span className="text-[13px] font-bold text-purple-800 uppercase">Physical Book Code</span>
+                                            <span className="text-[18px] font-black text-[#6B21A8]">
+                                                {selectedLoan.kode_buku_fisik || '-'}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

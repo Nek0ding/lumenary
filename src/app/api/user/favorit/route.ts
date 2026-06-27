@@ -1,46 +1,25 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { requireAuth } from "@/lib/auth";
 
 // =======================================================================
 // GET: Cek Status Satuan BUKU ATAU Ambil Semua List Koleksi Favorit User
 // =======================================================================
 export async function GET(request: Request) {
+    // requireAuth memvalidasi token dan mengembalikan { id_user, role }
+    // Jika token tidak ada atau expired, langsung return 401
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: "Akses ditolak!" }, { status: 401 });
-        }
-
-        const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json({ success: false, message: "Sesi kedaluwarsa!" }, { status: 401 });
-        }
-
-        const dbUser = await prisma.user.findUnique({
-            where: { email: user.email! },
-            select: { id_user: true }
-        });
-
-        if (!dbUser) {
-            return NextResponse.json({ success: false, message: "User tidak ditemukan" }, { status: 404 });
-        }
-
-        // Ambil query parameter
         const { searchParams } = new URL(request.url);
         const id_buku = searchParams.get('id_buku');
 
-        // ── KONDISI A: JIKA ADA ID_BUKU -> CEK STATUS SATUAN (Untuk Modal) ──
+        // ── KONDISI A: JIKA ADA ID_BUKU → CEK STATUS SATUAN (Untuk Modal) ──
         if (id_buku) {
             const favorit = await prisma.favorit.findFirst({
                 where: {
-                    id_user: dbUser.id_user,
+                    id_user: auth.id_user,
                     id_buku: Number(id_buku)
                 }
             });
@@ -51,9 +30,9 @@ export async function GET(request: Request) {
             }, { status: 200 });
         }
 
-        // ── KONDISI B: JIKA TIDAK ADA ID_BUKU -> AMBIL SEMUA LIST (Untuk Halaman Collection) ──
+        // ── KONDISI B: TANPA ID_BUKU → AMBIL SEMUA LIST (Untuk Halaman Collection) ──
         const favoritList = await prisma.favorit.findMany({
-            where: { id_user: dbUser.id_user },
+            where: { id_user: auth.id_user },
             include: {
                 buku: {
                     include: {
@@ -61,10 +40,9 @@ export async function GET(request: Request) {
                     }
                 }
             },
-            orderBy: { created_at: 'desc' } // Favorit terbaru di atas
+            orderBy: { created_at: 'desc' }
         });
 
-        // Normalisasi format data agar strukturnya sama persis dengan Explore/Katalog
         const formattedBooks = favoritList.map(fav => ({
             id_buku: fav.buku.id_buku,
             judul: fav.buku.judul,
@@ -84,7 +62,7 @@ export async function GET(request: Request) {
         }, { status: 200 });
 
     } catch (error) {
-        console.error("Error di GET /api/buku/favorit:", error);
+        console.error("Error di GET /api/user/favorit:", error);
         return NextResponse.json({ success: false, message: "Internal Server Error" }, { status: 500 });
     }
 }
@@ -93,18 +71,10 @@ export async function GET(request: Request) {
 // POST: Toggle Status Favorite / Unfavorite (Dengan Proteksi Spam)
 // =======================================================================
 export async function POST(request: Request) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: "Akses ditolak!" }, { status: 401 });
-        }
-
-        const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        if (authError || !user) {
-            return NextResponse.json({ success: false, message: "Sesi kedaluwarsa!" }, { status: 401 });
-        }
-
         const body = await request.json();
         const { id_buku } = body;
 
@@ -112,48 +82,62 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, message: "ID Buku wajib diisi" }, { status: 400 });
         }
 
-        const dbUser = await prisma.user.findUnique({
-            where: { email: user.email! },
-            select: { id_user: true }
+        // Validasi buku ada di database
+        const buku = await prisma.buku.findUnique({
+            where: { id_buku: Number(id_buku) },
+            select: { id_buku: true }
         });
 
-        if (!dbUser) {
-            return NextResponse.json({ success: false, message: "User tidak ditemukan" }, { status: 404 });
+        if (!buku) {
+            return NextResponse.json({ success: false, message: "Buku tidak ditemukan" }, { status: 404 });
         }
 
         const existingFavorit = await prisma.favorit.findFirst({
             where: {
-                id_user: dbUser.id_user,
+                id_user: auth.id_user,
                 id_buku: Number(id_buku)
             }
         });
 
         if (existingFavorit) {
-            // Aksi Unfavorite
+            // Aksi Unfavorite — pastikan hanya pemilik yang bisa hapus
             await prisma.favorit.delete({
                 where: { id_favorit: existingFavorit.id_favorit }
             });
-            return NextResponse.json({ success: true, isFavorited: false, message: "Buku dihapus dari favorit." }, { status: 200 });
-        } else {
-            // Aksi Favorite (Dengan try-catch menangkap kode P2002 jika terkena spam klik bersamaan)
-            try {
-                await prisma.favorit.create({
-                    data: {
-                        id_user: dbUser.id_user,
-                        id_buku: Number(id_buku)
-                    }
-                });
-                return NextResponse.json({ success: true, isFavorited: true, message: "Buku ditambahkan ke favorit." }, { status: 201 });
-            } catch (dbError: any) {
-                if (dbError.code === 'P2002') {
-                    return NextResponse.json({ success: true, isFavorited: true, message: "Buku sudah ada di favorit." }, { status: 200 });
+            return NextResponse.json({
+                success: true,
+                isFavorited: false,
+                message: "Buku dihapus dari favorit."
+            }, { status: 200 });
+        }
+
+        // Aksi Favorite (dengan guard P2002 jika terjadi race condition/spam klik)
+        try {
+            await prisma.favorit.create({
+                data: {
+                    id_user: auth.id_user,
+                    id_buku: Number(id_buku)
                 }
-                throw dbError;
+            });
+            return NextResponse.json({
+                success: true,
+                isFavorited: true,
+                message: "Buku ditambahkan ke favorit."
+            }, { status: 201 });
+        } catch (dbError: any) {
+            if (dbError.code === 'P2002') {
+                // Race condition: sudah di-favorite duluan, anggap sukses
+                return NextResponse.json({
+                    success: true,
+                    isFavorited: true,
+                    message: "Buku sudah ada di favorit."
+                }, { status: 200 });
             }
+            throw dbError;
         }
 
     } catch (error) {
-        console.error("Error di POST /api/buku/favorit:", error);
+        console.error("Error di POST /api/user/favorit:", error);
         return NextResponse.json({ success: false, message: "Internal Server Error" }, { status: 500 });
     }
 }

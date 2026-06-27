@@ -1,66 +1,62 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { prisma } from "@/lib/prisma";
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(request: Request) {
+    // 1. Keamanan Ketat: Validasi token menggunakan utility auth
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: "Akses ditolak!" }, { status: 401 });
-        }
+        const userId = auth.id_user;
 
-        const token = authHeader.split(' ')[1];
-        const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-        
-        if (authError || !user) {
-            return NextResponse.json({ success: false, message: "Sesi kedaluwarsa." }, { status: 401 });
-        }
-
-        const dbUser = await prisma.user.findUnique({
-            where: { email: user.email! },
-            select: { id_user: true }
-        });
-
-        if (!dbUser) {
-            return NextResponse.json({ success: false, message: "User tidak ditemukan." }, { status: 404 });
-        }
-
-        // Ambil semua tagihan denda yang belum dibayar
+        // 2. Ambil semua tagihan denda beserta relasi buku
         const dendaList = await prisma.denda.findMany({
             where: {
-                status_bayar: 'belum_bayar',
-                peminjaman: { id_user: dbUser.id_user }
+                peminjaman: { id_user: userId }
             },
             include: {
                 peminjaman: {
-                    include: { buku: { select: { judul: true } } }
+                    include: { 
+                        buku: { select: { judul: true, penulis: true, cover_buku: true } } 
+                    }
                 }
             },
             orderBy: { created_at: 'desc' }
         });
 
-        // Format data
-        const formattedDenda = dendaList.map(item => ({
-            id_denda: item.id_denda,
-            jumlah_denda: Number(item.jumlah_denda),
-            hari_terlambat: item.hari_terlambat,
-            keterangan_denda: item.keterangan_denda, // misal: 'tidak_ada', 'sobek', dll
-            judul_buku: item.peminjaman.buku.judul
-        }));
+        // 3. Pemisahan Data & Normalisasi (Active vs History)
+        const activePenalties: any[] = [];
+        const penaltyHistory: any[] = [];
+        let totalActivePenalty = 0;
 
-        // Hitung total semua tagihan
-        const totalTagihan = formattedDenda.reduce((sum, item) => sum + item.jumlah_denda, 0);
+        for (const item of dendaList) {
+            const mappedItem = {
+                id_denda: item.id_denda,
+                jumlah_denda: Number(item.jumlah_denda),
+                hari_terlambat: item.hari_terlambat,
+                keterangan_denda: item.keterangan_denda,
+                judul_buku: item.peminjaman.buku.judul,
+                penulis: item.peminjaman.buku.penulis,
+                cover_buku: item.peminjaman.buku.cover_buku,
+                tanggal_bayar: item.tanggal_bayar,
+                kode_peminjaman: item.peminjaman.kode_peminjaman || `LUM-${item.id_peminjaman}`
+            };
+
+            if (item.status_bayar === 'belum_bayar') {
+                activePenalties.push(mappedItem);
+                totalActivePenalty += mappedItem.jumlah_denda;
+            } else {
+                penaltyHistory.push(mappedItem);
+            }
+        }
 
         return NextResponse.json({
             success: true,
             data: {
-                list: formattedDenda,
-                total: totalTagihan
+                active: activePenalties,
+                history: penaltyHistory,
+                total: totalActivePenalty
             }
         }, { status: 200 });
 

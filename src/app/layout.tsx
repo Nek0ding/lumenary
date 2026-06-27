@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import "./globals.css";
+import { Toaster } from 'react-hot-toast';
 
 // 1. Inisialisasi font Plus Jakarta Sans
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -25,6 +26,16 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${plusJakartaSans.variable} h-full antialiased`}>
       <body className={`${plusJakartaSans.className} min-h-full flex flex-col bg-white`}>
+        <Toaster
+          position="top-right"
+          containerClassName="hot-toast-container"
+          reverseOrder={false}
+          toastOptions={{
+            style: {
+              zIndex: 9999999, // Pastikan ini lebih tinggi dari z-index modal Anda
+            },
+          }}
+        />
         {children}
       </body>
     </html>

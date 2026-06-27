@@ -1,64 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { requireAuth } from '@/lib/auth';
 
 export async function GET(request: Request) {
+    const auth = await requireAuth(request);
+    if (auth instanceof NextResponse) return auth;
+
     try {
         // ==========================================
-        // 1. VALIDASI TOKEN JWT (AUTHENTICATION)
-        // ==========================================
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json({ success: false, message: "Akses ditolak! Token tidak valid." }, { status: 401 });
-        }
-
-        const token = authHeader.split(' ')[1];
-        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-
-        if (authError || !authUser || !authUser.email) {
-            return NextResponse.json({ success: false, message: "Akses ditolak! Token expired atau tidak valid." }, { status: 401 });
-        }
-
-        // ==========================================
-        // 2. AMBIL & VALIDASI PARAMETER URL NPM
-        // ==========================================
-        const { searchParams } = new URL(request.url);
-        const requestedNpm = searchParams.get('npm');
-
-        if (!requestedNpm) {
-            return NextResponse.json({ success: false, message: "Parameter NPM tidak ditemukan!" }, { status: 400 });
-        }
-
-        // ==========================================
-        // 3. SECURE CROSS-CHECK (IDOR PROTECTION)
-        // ==========================================
-        const dbUser = await prisma.user.findUnique({
-            where: { email: authUser.email }
-        });
-
-        if (!dbUser) {
-            return NextResponse.json({ success: false, message: "User tidak ditemukan di database!" }, { status: 404 });
-        }
-
-        // Pastikan token pemilik email MATCH dengan NPM yang diminta di URL
-        if (dbUser.npm !== requestedNpm) {
-            return NextResponse.json(
-                { success: false, message: "Akses Terlarang! Anda tidak diizinkan melihat data riwayat mahasiswa lain." },
-                { status: 403 }
-            );
-        }
-
-        const userId = dbUser.id_user;
-
-        // ==========================================
-        // 4. QUERY DATA PEMINJAMAN (+ INCLUDE DENDA)
+        // QUERY DATA PEMINJAMAN (+ INCLUDE DENDA)
         // ==========================================
         const semuaPeminjaman = await prisma.peminjaman.findMany({
-            where: { id_user: userId },
+            where: { id_user: auth.id_user },
             include: {
                 buku: {
                     include: {
@@ -67,13 +20,14 @@ export async function GET(request: Request) {
                         }
                     }
                 },
-                denda: true // Tambahkan ini agar data denda ikut terambil dari database
+                denda: true,
+                item_fisik: true
             },
             orderBy: { created_at: 'desc' }
         });
 
         // ==========================================
-        // 5. SEPARASI DATA (ACTIVE vs PAST)
+        // SEPARASI DATA (ACTIVE vs PAST)
         // ==========================================
         const activeLoans = [];
         const pastLoans = [];
@@ -96,7 +50,7 @@ export async function GET(request: Request) {
                 kode_peminjaman: pinjam.kode_peminjaman,
                 status: pinjam.status,
                 created_at: pinjam.created_at,
-                // Map objek denda jika ada, ubah Decimal ke Number agar aman diserialisasi
+                kode_buku_fisik: pinjam.item_fisik ? pinjam.item_fisik.kode_buku : null,
                 denda: pinjam.denda ? {
                     id_denda: pinjam.denda.id_denda,
                     jumlah_denda: Number(pinjam.denda.jumlah_denda),
@@ -114,9 +68,6 @@ export async function GET(request: Request) {
             }
         }
 
-        // ==========================================
-        // 6. RESPONSE SUCCESS
-        // ==========================================
         return NextResponse.json({
             success: true,
             message: "Berhasil mengambil data riwayat peminjaman",

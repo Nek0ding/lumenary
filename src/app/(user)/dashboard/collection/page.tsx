@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { Search, Loader2, BookOpen, X, Star, CheckCircle2, AlertCircle, Heart } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -12,18 +12,46 @@ interface Buku {
     cover_buku: string | null;
     isbn?: string;
     stok?: number;
-    stok_tersedia?: number; 
     rating_rata: number | null;
     kategori?: { nama_kategori: string };
+}
+
+// Helper: handle semua fetch yang butuh auth.
+// Jika response 401 dengan code TOKEN_EXPIRED atau sesi habis → redirect /login.
+async function authFetch(
+    url: string,
+    options: RequestInit,
+    token: string,
+    onExpired: () => void
+): Promise<Response | null> {
+    const res = await fetch(url, {
+        ...options,
+        headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    if (res.status === 401) {
+        localStorage.clear();
+        onExpired();
+        return null;
+    }
+
+    return res;
 }
 
 function CollectionContent() {
     const router = useRouter();
 
+    const handleExpiredSession = useCallback(() => {
+        router.replace('/login');
+    }, [router]);
+
     // Data States
     const [books, setBooks] = useState<Buku[]>([]);
     const [loading, setLoading] = useState(true);
-    
+
     // Search & Debounce States
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -37,36 +65,42 @@ function CollectionContent() {
     const [isTnCOpen, setIsTnCOpen] = useState(false);
     const [agreedToTnC, setAgreedToTnC] = useState(false);
     const [isReserving, setIsReserving] = useState(false);
-    const [reservationSuccess, setReservationSuccess] = useState<{kode: string, judul: string} | null>(null);
+    const [reservationSuccess, setReservationSuccess] = useState<{ kode: string; judul: string } | null>(null);
 
     // Favorite States
     const [isFavorited, setIsFavorited] = useState(false);
     const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
 
+    // --- GUARD: Cek token saat komponen mount ---
+    // Jika tidak ada token sama sekali, langsung redirect (tanpa hit API)
+    useEffect(() => {
+        const token = localStorage.getItem('lumenary_token');
+        if (!token) {
+            router.replace('/login');
+        }
+    }, [router]);
+
     // --- DEBOUNCE EFFECT ---
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedQuery(searchQuery);
-        }, 300);
-
+        const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
     // --- FETCH DATA KOLEKSI FAVORIT ---
-    const fetchCollection = async () => {
+    const fetchCollection = useCallback(async () => {
         const token = localStorage.getItem('lumenary_token');
-        if (!token) {
-            router.replace('/login');
-            return;
-        }
+        if (!token) return;
 
         try {
-            const res = await fetch('/api/user/favorit', {
-                method: 'GET',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const res = await authFetch(
+                '/api/user/favorit',
+                { method: 'GET' },
+                token,
+                handleExpiredSession
+            );
+            if (!res) return; // Token expired, redirect sudah dipanggil
+
             const resData = await res.json();
-            
             if (res.ok && resData.success) {
                 setBooks(resData.data || []);
             } else {
@@ -77,14 +111,14 @@ function CollectionContent() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [handleExpiredSession]);
 
     useEffect(() => {
         fetchCollection();
-    }, [router]);
+    }, [fetchCollection]);
 
     // --- MODAL TRIGGERS ---
-    const openBookDetail = async (book: Buku) => {
+    const openBookDetail = (book: Buku) => {
         setSelectedBook(book);
         setIsExpanded(false);
         setIsModalOpen(true);
@@ -104,7 +138,7 @@ function CollectionContent() {
         setAgreedToTnC(false);
     };
 
-    // --- TOGGLE FAVORITE HANDLER (UNFAVORITE) ---
+    // --- TOGGLE FAVORITE HANDLER (UNFAVORITE dari halaman ini) ---
     const handleToggleFavorite = async () => {
         if (!selectedBook) return;
         const token = localStorage.getItem('lumenary_token');
@@ -112,20 +146,23 @@ function CollectionContent() {
 
         setIsTogglingFavorite(true);
         try {
-            const res = await fetch('/api/user/favorit', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+            const res = await authFetch(
+                '/api/user/favorit',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_buku: Number(selectedBook.id_buku) })
                 },
-                body: JSON.stringify({ id_buku: Number(selectedBook.id_buku) })
-            });
+                token,
+                handleExpiredSession
+            );
+            if (!res) return;
+
             const data = await res.json();
-            
             if (res.ok && data.success) {
                 setIsFavorited(data.isFavorited);
-                closeBookDetail(); // Tutup modal otomatis saat di-unfavorite
-                fetchCollection(); // Render ulang grid buku
+                closeBookDetail();
+                fetchCollection();
             } else {
                 alert(data.message || "Gagal memperbarui status koleksi");
             }
@@ -139,36 +176,41 @@ function CollectionContent() {
     // --- EXECUTE RESERVATION API ---
     const submitReservation = async () => {
         if (!selectedBook || !agreedToTnC) return;
+        const token = localStorage.getItem('lumenary_token');
+        if (!token) return;
+
         setIsReserving(true);
         try {
-            const token = localStorage.getItem('lumenary_token');
-            const res = await fetch('/api/peminjaman', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+            const res = await authFetch(
+                '/api/peminjaman',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id_buku: Number(selectedBook.id_buku) })
                 },
-                body: JSON.stringify({ id_buku: Number(selectedBook.id_buku) })
-            });
-            const data = await res.json();
+                token,
+                handleExpiredSession
+            );
+            if (!res) return;
 
+            const data = await res.json();
             if (res.ok && data.success) {
                 setIsTnCOpen(false);
-                closeBookDetail(); 
+                closeBookDetail();
                 setReservationSuccess({
                     kode: data.data.kode_peminjaman,
                     judul: selectedBook.judul
                 });
             } else {
                 if (data.code === 'INCOMPLETE_PROFILE') {
-                    alert("Attention: Please complete your active residential address and phone number in Settings before borrowing a book!");
+                    alert("Lengkapi alamat aktif dan nomor telepon di Settings sebelum meminjam buku!");
                     router.push('/settings');
                 } else {
-                    alert(`Failed: ${data.message}`);
+                    alert(`Gagal: ${data.message}`);
                 }
             }
-        } catch(e) {
-            alert("An error occurred connecting to the server.");
+        } catch (e) {
+            alert("Terjadi kesalahan koneksi ke server.");
         } finally {
             setIsReserving(false);
         }
@@ -178,9 +220,7 @@ function CollectionContent() {
         if (!selectedBook) return null;
         const text = selectedBook.sinopsis || "Sinopsis tidak tersedia untuk buku ini.";
         const maxLength = 150;
-
         if (text.length <= maxLength) return text;
-
         return isExpanded ? (
             <>
                 {text}
@@ -201,7 +241,7 @@ function CollectionContent() {
     // --- 1. MODAL BUKU UTAMA ---
     const renderModal = () => {
         if (!isModalOpen || !selectedBook) return null;
-        const stockCount = selectedBook.stok ?? selectedBook.stok_tersedia ?? 0;
+        const stockCount = selectedBook.stok ?? 0;
 
         return (
             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99990] flex items-center justify-center p-4 transition-opacity duration-300">
@@ -211,7 +251,11 @@ function CollectionContent() {
                     </button>
 
                     <div className="flex flex-col items-center w-full max-w-[200px] md:max-w-[280px] shrink-0 mx-auto">
-                        <img src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} alt={selectedBook.judul} className="w-full aspect-[2/3] object-cover rounded-[16px] shadow-xl" />
+                        <img
+                            src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"}
+                            alt={selectedBook.judul}
+                            className="w-full aspect-[2/3] object-cover rounded-[16px] shadow-xl"
+                        />
                         <div className="flex gap-1 md:gap-2 mt-4 md:mt-5">
                             {[1, 2, 3, 4, 5].map((star) => (
                                 <Star key={star} className="w-5 h-5 md:w-7 md:h-7" fill="#FFD700" color="#FFD700" />
@@ -254,8 +298,8 @@ function CollectionContent() {
                                     onClick={handleToggleFavorite}
                                     disabled={isTogglingFavorite}
                                     className={`px-4 py-3 md:py-4 rounded-xl border font-bold text-[14px] md:text-[16px] flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
-                                        ${isFavorited 
-                                            ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100' 
+                                        ${isFavorited
+                                            ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
                                             : 'bg-white border-zinc-200 text-zinc-700 hover:bg-zinc-50'
                                         }`}
                                 >
@@ -269,7 +313,7 @@ function CollectionContent() {
                                     className="flex-1 py-3 md:py-4 rounded-xl text-[16px] md:text-[18px] font-extrabold border-none text-white shadow-md transition-transform hover:scale-[1.01] active:scale-95 disabled:hover:scale-100 disabled:active:scale-100"
                                     style={{
                                         background: 'linear-gradient(90deg, #161B85 0%, #0E1154 100%)',
-                                        cursor: stockCount > 0 ? 'pointer' : 'not-allowed', 
+                                        cursor: stockCount > 0 ? 'pointer' : 'not-allowed',
                                         opacity: stockCount > 0 ? 1 : 0.6,
                                     }}
                                 >
@@ -306,9 +350,9 @@ function CollectionContent() {
                     </div>
 
                     <label className="flex items-start gap-3 cursor-pointer mb-6 p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                        <input 
-                            type="checkbox" 
-                            checked={agreedToTnC} 
+                        <input
+                            type="checkbox"
+                            checked={agreedToTnC}
                             onChange={(e) => setAgreedToTnC(e.target.checked)}
                             className="mt-1 w-5 h-5 accent-[#161B85] cursor-pointer"
                         />
@@ -344,26 +388,22 @@ function CollectionContent() {
                     <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
                         <CheckCircle2 size={40} />
                     </div>
-                    
                     <h3 className="text-[24px] font-extrabold text-[#111] mb-2">Reservation Successful!</h3>
                     <p className="text-[15px] text-zinc-500 mb-6 font-medium">
                         Your request for <b className="text-[#111]">"{reservationSuccess.judul}"</b> has been secured.
                     </p>
-
                     <div className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl p-6 mb-6">
                         <p className="text-[12px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Your Booking Code</p>
                         <p className="text-[40px] font-black text-[#161B85] tracking-widest leading-none">
                             {reservationSuccess.kode}
                         </p>
                     </div>
-
                     <div className="flex items-start gap-3 bg-blue-50 text-blue-800 p-4 rounded-xl text-left mb-8 border border-blue-100">
                         <AlertCircle size={20} className="shrink-0 mt-0.5" />
                         <p className="text-[13px] font-medium leading-relaxed">
                             Please show this Booking Code to the librarian at the front desk within <b>24 hours</b> to claim your physical book.
                         </p>
                     </div>
-
                     <button
                         onClick={() => setReservationSuccess(null)}
                         className="w-full py-4 rounded-xl text-[16px] font-extrabold text-white transition-all hover:-translate-y-0.5 shadow-lg"
@@ -376,8 +416,7 @@ function CollectionContent() {
         );
     };
 
-    // Filter lokal menggunakan nilai debouncedQuery
-    const filteredBooks = books.filter(buku => 
+    const filteredBooks = books.filter(buku =>
         buku.judul.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
         buku.penulis.toLowerCase().includes(debouncedQuery.toLowerCase())
     );
@@ -388,21 +427,17 @@ function CollectionContent() {
             {renderTnCModal()}
             {renderSuccessModal()}
 
-            {/* HEADER KONTEN */}
             <div className="flex flex-col mb-8 gap-2 mt-4">
-                <h1 className="text-[28px] md:text-[32px] font-extrabold text-black leading-tight">
-                    My Collection
-                </h1>
+                <h1 className="text-[28px] md:text-[32px] font-extrabold text-black leading-tight">My Collection</h1>
                 <p className="text-[14px] md:text-[16px] text-zinc-500 font-medium">
                     Your curated reading shortlist. Click any title to check availability, manage status, or initiate quick booking.
                 </p>
             </div>
 
-            {/* SEARCH BAR */}
             <div className="mb-8 relative flex items-center shadow-sm">
                 <Search className="absolute left-4 text-zinc-400" size={20} />
-                <input 
-                    type="text" 
+                <input
+                    type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filter your favorites by title or author..."
@@ -410,7 +445,6 @@ function CollectionContent() {
                 />
             </div>
 
-            {/* DAFTAR BUKU */}
             {loading ? (
                 <div className="flex flex-col justify-center items-center py-20 gap-4">
                     <Loader2 className="w-8 h-8 text-[#161B85] animate-spin" />
@@ -422,8 +456,8 @@ function CollectionContent() {
                         <div key={buku.id_buku} className="flex flex-col group cursor-pointer" onClick={() => openBookDetail(buku)}>
                             <div className="w-full aspect-[3/4] bg-zinc-100 rounded-[16px] mb-3 overflow-hidden shadow-sm group-hover:shadow-md transition-all border border-zinc-100 relative">
                                 {buku.cover_buku ? (
-                                    <img 
-                                        src={buku.cover_buku} 
+                                    <img
+                                        src={buku.cover_buku}
                                         alt={buku.judul}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                     />
@@ -436,9 +470,7 @@ function CollectionContent() {
                             <h3 className="text-[16px] font-bold text-black leading-snug line-clamp-1 group-hover:text-[#161B85] transition-colors">
                                 {buku.judul}
                             </h3>
-                            <p className="text-[14px] text-zinc-600 line-clamp-1 mt-0.5">
-                                {buku.penulis}
-                            </p>
+                            <p className="text-[14px] text-zinc-600 line-clamp-1 mt-0.5">{buku.penulis}</p>
                         </div>
                     ))}
                 </div>
@@ -452,7 +484,10 @@ function CollectionContent() {
                         {debouncedQuery ? "Try a different title or author." : "Books you add to favorites will appear here."}
                     </p>
                     {!debouncedQuery && (
-                        <button onClick={() => router.push('/explore')} className="mt-6 px-6 py-2.5 bg-[#161B85] text-white font-bold rounded-lg hover:bg-[#0E1154] transition-colors">
+                        <button
+                            onClick={() => router.push('/explore')}
+                            className="mt-6 px-6 py-2.5 bg-[#161B85] text-white font-bold rounded-lg hover:bg-[#0E1154] transition-colors"
+                        >
                             Explore Books
                         </button>
                     )}

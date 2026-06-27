@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { keteranganDenda, StatusBayar, StatusPeminjaman } from "@prisma/client";
 
-const DENDA_PER_HARI = 1000;
+const DENDA_PER_HARI = 5000;
 
 function isAuthorized(request: Request): boolean {
     const authHeader = request.headers.get("Authorization");

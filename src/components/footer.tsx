@@ -24,15 +24,15 @@ export default function Footer() {
                     
                     <div className="grid grid-cols-2 gap-x-8 md:gap-x-[48px] gap-y-[12px] text-[14px] md:text-[16px] text-zinc-600 w-full lg:w-auto mt-2 lg:mt-0">
                         <div className="flex flex-col gap-[12px] md:gap-[16px]">
-                            <a href="#" className="hover:text-black font-medium">Home</a>
-                            <a href="#" className="hover:text-black font-medium">Explore Books</a>
-                            <a href="#" className="hover:text-black font-medium">About Us</a>
-                            <a href="#" className="hover:text-black font-medium">FAQ</a>
+                            <a href="/" className="hover:text-black font-medium">Home</a>
+                            <a href="/explore" className="hover:text-black font-medium">Explore Books</a>
+                            <a href="/" className="hover:text-black font-medium">About Us</a>
+                            <a href="/" className="hover:text-black font-medium">FAQ</a>
                         </div>
                         <div className="flex flex-col gap-[12px] md:gap-[16px]">
-                            <a href="#" className="hover:text-black font-medium">Book Reservation</a>
-                            <a href="#" className="hover:text-black font-medium">Seat Booking</a>
-                            <a href="#" className="hover:text-black font-medium">Loan Rules</a>
+                            <a href="/" className="hover:text-black font-medium">Book Reservation</a>
+                            <a href="/" className="hover:text-black font-medium">Seat Booking</a>
+                            <a href="/" className="hover:text-black font-medium">Loan Rules</a>
                         </div>
                     </div>
                 </div>
