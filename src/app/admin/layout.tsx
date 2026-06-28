@@ -125,16 +125,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </div>
 
                 <div className="px-6 pb-8">
-                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Settings</p>
                     <nav className="flex flex-col gap-2">
-                        <Link 
-                            href="/admin/settings" 
-                            onClick={() => setIsMobileMenuOpen(false)}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium transition-colors 
-                                ${pathname.startsWith('/admin/settings') ? 'bg-red-50 text-red-600 font-bold' : 'text-zinc-600 hover:bg-zinc-50'}`}
-                        >
-                            <Settings size={20} /> Setting
-                        </Link>
                         <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[14px] font-medium text-zinc-600 hover:bg-red-50 hover:text-red-600 transition-colors w-full text-left cursor-pointer">
                             <LogOut size={20} /> Log Out
                         </button>
@@ -168,7 +159,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     </div>
 
                     <div className="flex items-center gap-4 md:gap-6 ml-4">
-                        <Link className="flex items-center gap-3 border-l border-zinc-300 pl-4 md:pl-6 cursor-pointer" href="/admin/settings">
+                        <div className="flex items-center gap-3 border-l border-zinc-300 pl-4 md:pl-6">
                             <div className="flex flex-col text-right md:text-left hidden sm:flex">
                                 <span className="text-[14px] font-bold text-black leading-tight line-clamp-1">{userProfile.name}</span>
                                 <span className="text-[11px] text-black font-bold uppercase">{userProfile.npm}</span>
@@ -176,7 +167,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <div className="w-10 h-10 rounded-full bg-[#EADFFF] border-2 border-[#161B85]/20 flex items-center justify-center text-[#161B85] font-bold sm:hidden">
                                 {userProfile.name.charAt(0)}
                             </div>
-                        </Link>
+                        </div>
                     </div>
                 </header>
 
