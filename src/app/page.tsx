@@ -110,14 +110,20 @@ export default function LandingPage() {
   const explore = () => router.push('/explore');
 
   const getStarted = () => {
+    // 1. Ambil token (hanya untuk cek apakah user sudah login)
     const token = localStorage.getItem('lumenary_token');
+
+    // 2. Ambil role user (asumsikan Anda menyimpannya saat login)
+    // Jika Anda tidak menyimpannya, Anda harus menyimpannya saat login, 
+    // contoh: localStorage.setItem('user_role', 'ADMIN');
+    const userRole = localStorage.getItem('user_role');
+
     if (token) {
-      const user = JSON.parse(token);
-      // Cek role dari data user yang tersimpan
-      if (user.role === 'ADMIN') {
-        router.push('/admin/dashboard'); // Arahkan ke dashboard admin
+      // Cek role dari item yang terpisah
+      if (userRole === 'ADMIN') {
+        router.push('/admin/dashboard');
       } else {
-        router.push('/dashboard');       // Arahkan ke dashboard user biasa
+        router.push('/dashboard');
       }
     } else {
       router.push('/login');

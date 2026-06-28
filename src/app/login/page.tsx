@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Loader2 } from 'lucide-react'; // Tambahkan Loader2
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -11,37 +11,32 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
-    const [loading, setLoading] = useState(true); // Loading untuk cek sesi awal
-    const [isSubmitting, setIsSubmitting] = useState(false); // Loading untuk tombol submit
+    const [loading, setLoading] = useState(true); // Default true untuk mencegah "flicker"
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [keepSignedIn, setKeepSignedIn] = useState(false);
 
     useEffect(() => {
         const verifySession = async () => {
             const token = localStorage.getItem('lumenary_token');
+            const userStr = localStorage.getItem('lumenary_user');
 
-            // Tidak ada token sama sekali — langsung tampilkan form
-            if (!token) {
+            if (!token || !userStr) {
                 setLoading(false);
                 return;
             }
 
-            // Ada token — verifikasi ke server apakah masih valid
             try {
+                // Verifikasi ke server
                 const res = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                const data = await res.json();
-
                 if (res.ok) {
-                    // Token valid — cek role untuk redirect yang sesuai
-                    if (data.user?.role === 'ADMIN') {
-                        router.replace('/admin/dashboard');
-                    } else {
-                        router.replace('/dashboard');
-                    }
+                    const { user } = await res.json();
+                    // Langsung redirect jika sudah login
+                    router.replace(user.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard');
                 } else {
-                    // Token tidak valid / expired — bersihkan storage
+                    // Token invalid, bersihkan
                     localStorage.removeItem('lumenary_token');
                     localStorage.removeItem('lumenary_user');
                     setLoading(false);
@@ -54,12 +49,18 @@ export default function LoginPage() {
         verifySession();
     }, [router]);
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    // Tampilkan loading screen minimalis saat verifikasi
+    if (loading) return (
+        <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+            <Loader2 size={32} className="animate-spin text-[#161B85]" />
+            <p className="text-sm font-bold text-zinc-500">Verifying session...</p>
+        </div>
+    );
 
     const handleSignInSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
-        setIsSubmitting(true); // Aktifkan animasi loading tombol
+        setIsSubmitting(true);
 
         try {
             const res = await fetch('/api/auth/login', {
@@ -74,24 +75,15 @@ export default function LoginPage() {
                 localStorage.setItem('lumenary_token', data.token);
                 localStorage.setItem('lumenary_user', JSON.stringify(data.user));
 
-                // Jika tidak centang "Keep me signed in", tandai sebagai session-only
-                if (!keepSignedIn) {
-                    sessionStorage.setItem('lumenary_session_only', 'true');
-                }
-
-                // REDIRECT BERDASARKAN ROLE
-                if (data.user.role === 'ADMIN') {
-                    router.replace('/admin/dashboard');
-                } else {
-                    router.replace('/dashboard');
-                }
+                // Redirect sesuai role
+                router.replace(data.user.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard');
             } else {
-                setError(data.message || 'Login failed, check your credential.');
+                setError(data.message || 'Login failed, check your credentials.');
             }
         } catch {
-            setError('Terjadi kesalahan pada server. Coba lagi nanti.');
+            setError('Server connection error. Please try again.');
         } finally {
-            setIsSubmitting(false); // Matikan animasi loading tombol
+            setIsSubmitting(false);
         }
     };
 
@@ -160,7 +152,7 @@ export default function LoginPage() {
                                     placeholder="Enter your id number"
                                     value={npm}
                                     onChange={(e) => setNpm(e.target.value)}
-                                    maxLength={8} 
+                                    maxLength={8}
                                     disabled={isSubmitting}
                                     className="w-full h-[48px] sm:h-[52px] xl:h-[48px] px-4 rounded-xl border border-zinc-300 bg-white text-black placeholder-zinc-400 focus:outline-none focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] transition-all text-[14px] sm:text-[15px] font-medium disabled:opacity-50 disabled:bg-zinc-50"
                                     required
