@@ -287,9 +287,29 @@ export async function DELETE(request: Request) {
     if (!id_buku) return NextResponse.json({ success: false, message: "Book ID is required." }, { status: 400 });
 
     try {
+        // 1. Cek apakah buku ada
         const book = await prisma.buku.findUnique({ where: { id_buku: Number(id_buku) } });
         if (!book) return NextResponse.json({ success: false, message: "Book not found." }, { status: 404 });
 
+        // 2. Validasi Peminjaman Aktif
+        // Menghitung jumlah transaksi yang belum selesai (direservasi, dipinjam, atau terlambat)
+        const activeLoans = await prisma.peminjaman.count({
+            where: {
+                id_buku: Number(id_buku),
+                status: {
+                    in: ["direservasi", "dipinjam", "terlambat"]
+                }
+            }
+        });
+
+        if (activeLoans > 0) {
+            return NextResponse.json({ 
+                success: false, 
+                message: `Cannot delete book. There are ${activeLoans} active loan(s) or reservations associated with this book. Please resolve them first.` 
+            }, { status: 400 }); // Gunakan HTTP 400 (Bad Request) atau 409 (Conflict)
+        }
+
+        // 3. Eksekusi Hapus dan AuditLog (Jika tidak ada peminjaman aktif)
         await prisma.$transaction(async (tx) => {
             // Because of onDelete: Cascade in schema, deleting the book will delete BukuItems & Ratings
             await tx.buku.delete({ where: { id_buku: Number(id_buku) } });
