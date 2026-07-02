@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, Star, Search, Menu } from 'lucide-react';
+import { X, Star, Search, Menu, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 type Book = {
@@ -110,16 +110,10 @@ export default function LandingPage() {
   const explore = () => router.push('/explore');
 
   const getStarted = () => {
-    // 1. Ambil token (hanya untuk cek apakah user sudah login)
     const token = localStorage.getItem('lumenary_token');
-
-    // 2. Ambil role user (asumsikan Anda menyimpannya saat login)
-    // Jika Anda tidak menyimpannya, Anda harus menyimpannya saat login, 
-    // contoh: localStorage.setItem('user_role', 'ADMIN');
     const userRole = localStorage.getItem('user_role');
 
     if (token) {
-      // Cek role dari item yang terpisah
       if (userRole === 'ADMIN') {
         router.push('/admin/dashboard');
       } else {
@@ -187,11 +181,28 @@ export default function LandingPage() {
                 alt={selectedBook.judul}
                 style={{ width: '100%', aspectRatio: '2/3', objectFit: 'cover', borderRadius: '16px', boxShadow: '0 12px 24px rgba(0,0,0,0.15)' }}
               />
-              <div className="flex gap-1 md:gap-2 mt-4 md:mt-5">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star key={star} className="w-4 h-4 md:w-7 md:h-7" fill="#FFD700" color="#FFD700" />
-                ))}
+              
+              {/* PERBAIKAN RATING BINTANG DINAMIS */}
+              <div className="flex items-center gap-1 md:gap-2 mt-4 md:mt-5">
+                {[1, 2, 3, 4, 5].map((star) => {
+                  const rating = selectedBook.rating_rata ?? 0;
+                  const isFilled = star <= Math.round(rating);
+                  return (
+                    <Star 
+                      key={star} 
+                      className="w-4 h-4 md:w-7 md:h-7 transition-colors duration-200" 
+                      fill={isFilled ? "#FFD700" : "transparent"} 
+                      color={isFilled ? "#FFD700" : "#CBD5E1"} 
+                    />
+                  );
+                })}
+                {selectedBook.rating_rata && (
+                  <span className="text-xs md:text-sm font-black text-zinc-700 ml-1">
+                    ({Number(selectedBook.rating_rata).toFixed(1)})
+                  </span>
+                )}
               </div>
+              
               <p className="text-[12px] md:text-[16px] font-semibold text-[#333] mt-3 md:mt-4 text-center">
                 ISBN : {selectedBook.isbn || '978-0-59-313520-4'}
               </p>
@@ -331,7 +342,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              {/* HERO CONTENT - Diubah pb-20 menjadi pb-28 untuk HP agar ada jarak ekstra aman */}
+              {/* HERO CONTENT */}
               <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-center flex-1 pb-28 sm:pb-24 md:pb-24">
                 <div className="flex flex-col gap-[16px] md:gap-[24px] max-w-[540px]">
                   <div className="flex flex-col gap-[8px] md:gap-[12px]">
@@ -387,7 +398,19 @@ export default function LandingPage() {
               <p className="text-[14px] sm:text-[16px] md:text-[24px] font-medium text-zinc-600 md:text-[#020617]">Check out the most popular and frequently borrowed books by students this week.</p>
             </div>
 
-            {loading && <div className="font-medium py-10 animate-pulse text-[14px] md:text-[18px]">Loading trending books...</div>}
+            {/* PERBAIKAN: SMOOTH SKELETON TRANSITION */}
+            {loading && (
+              <div className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex flex-col gap-3 animate-pulse">
+                    <div className="bg-zinc-200 rounded-[16px] md:rounded-[20px] aspect-[3/4] w-full" />
+                    <div className="h-4 bg-zinc-200 rounded w-5/6" />
+                    <div className="h-3 bg-zinc-200 rounded w-1/2" />
+                  </div>
+                ))}
+              </div>
+            )}
+            
             {error && <div className="text-red-500 font-medium py-10 text-[14px] md:text-[18px]">Gagal memuat data: {error}</div>}
 
             {!loading && !error && (
@@ -399,7 +422,7 @@ export default function LandingPage() {
                         <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" src={book.cover_buku || "https://placehold.co/230x320?text=No+Cover"} alt={book.judul} />
                         {book.rating_rata && (
                           <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-black/70 backdrop-blur-sm text-yellow-400 text-[10px] md:text-[12px] font-bold px-2 py-1 rounded-md flex items-center gap-1">
-                            ⭐ {book.rating_rata}
+                            ⭐ {Number(book.rating_rata).toFixed(1)}
                           </div>
                         )}
                       </div>

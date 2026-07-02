@@ -339,7 +339,7 @@ export default function CounterDashboard() {
         const matchFilter =
             activeFilter === 'all' ||
             (activeFilter === 'pickup' && item.action_type === 'PICKUP_BOOKING') ||
-            (activeFilter === 'return' && item.action_type === 'RETURN & FINE');
+            (activeFilter === 'return' && item.action_type === 'RETURN & FINE' && item.hari_terlambat > 0);
 
         // Search: kode_peminjaman, nama, npm, judul buku
         const q = searchQuery.toLowerCase().trim();
@@ -382,9 +382,6 @@ export default function CounterDashboard() {
                 {/* ─── Header ──────────────────────────────────────────── */}
                 <div className="flex justify-between items-end mb-6">
                     <div>
-                        <p className="text-xs font-extrabold text-zinc-400 uppercase tracking-widest mb-1">
-                            Dashboard &rsaquo; Counter Operations
-                        </p>
                         <h1 className="text-3xl font-black text-zinc-900">Counter Operations</h1>
                         <p className="text-zinc-500 font-semibold mt-1 text-sm">
                             Real-time monitoring of live student transaction queue
@@ -417,7 +414,7 @@ export default function CounterDashboard() {
                     <StatCard
                         icon={<AlertTriangle size={18} className="text-amber-600" />}
                         label="Overdue Returns"
-                        value={`${summary.overdue_returns}B`}
+                        value={`${summary.overdue_returns} B`}
                         accent="bg-amber-50"
                     />
                     <StatCard

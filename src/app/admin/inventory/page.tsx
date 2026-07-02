@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation'; // Tambahkan untuk membaca parameter pencarian URL
 import {
     Plus, X, UploadCloud, ChevronLeft, ChevronRight,
     BookOpen, Layers, SlidersHorizontal,
@@ -144,7 +145,7 @@ function AddBookModal({
         if (!/^\d{9}[\dX]$|^\d{13}$/.test(isbn))               e.isbn            = "ISBN must be 10 or 13 digits.";
         if (isNaN(tahun) || tahun < 1000 || tahun > currentYear) e.tahun_terbit    = `Year must be between 1000–${currentYear}.`;
         if (!id_kat)                                             e.id_kategori     = "Category is required.";
-        if (isNaN(stok) || stok < 1 || stok > 100)              e.stok            = "Stock must be between 1–100.";
+        if (isNaN(stok) || stok < 1 || stok > 100)               e.stok            = "Stock must be between 1–100.";
         if (!asal)                                               e.asal_perolehan  = "Acquisition source is required.";
         if (!file)                                               e.cover           = "Book cover image is required.";
         return e;
@@ -418,14 +419,12 @@ function DetailModal({
             const res = await authFetch("/api/admin/buku", {
                 method: "PUT",
                 body: fd
-                // Note: fetch will automatically set Content-Type to multipart/form-data with boundaries
             });
             const result = await res.json();
             if (result.success) {
                 toast.success("Book metadata successfully updated!");
                 setIsEditing(false);
                 setEditFile(null); // Clear pending upload state
-                // Update parent state with the new data from server
                 onStockUpdated({
                     ...book,
                     ...editData,
@@ -661,7 +660,10 @@ function DetailModal({
                                 {isEditing ? (
                                     <textarea 
                                         value={editData.sinopsis}
-                                        onChange={e => setEditData({...editData, sinopsis: e.target.value})}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            setEditData(prev => ({ ...prev, sinopsis: val }));
+                                        }}
                                         rows={4}
                                         className="w-full text-xs text-zinc-900 font-semibold leading-relaxed border border-zinc-300 focus:border-[#161B85] focus:ring-1 focus:ring-[#161B85] focus:outline-none rounded-xl p-3 bg-zinc-50"
                                     />
@@ -741,20 +743,15 @@ function DetailModal({
                                             focus:outline-none focus:ring-2 focus:ring-[#161B85]/30 focus:border-[#161B85]
                                             ${formErrors.jumlah ? 'border-red-400' : 'border-zinc-300 hover:border-zinc-400'}`}
                                     />
-                                    {formErrors.jumlah && <p className="text-[10px] text-red-600 font-bold mt-1">{formErrors.jumlah}</p>}
+                                    {formErrors.jumlah && <p className="text-[11px] text-red-600 font-bold mt-1 flex items-center gap-1"><AlertCircle size={11} />{formErrors.jumlah}</p>}
                                 </div>
                                 <div>
-                                    <FieldLabel>Acquisition Source *</FieldLabel>
-                                    <select
-                                        value={asal}
-                                        onChange={e => { setAsal(e.target.value); setFormErrors(p => ({ ...p, asal: "" })); }}
-                                        className={`w-full px-4 py-3 rounded-xl border text-sm font-bold text-zinc-900 bg-white
-                                            focus:outline-none focus:ring-2 focus:ring-[#161B85]/30 focus:border-[#161B85]
-                                            ${formErrors.asal ? 'border-red-400' : 'border-zinc-300 hover:border-zinc-400'}`}
-                                    >
+                                    <SelectField label="Acquisition Source *" name="asal_perolehan" error={formErrors.asal} value={asal} onChange={e => {
+                                        setAsal(e.target.value);
+                                        setFormErrors(prev => ({ ...prev, asal: "" }));
+                                    }}>
                                         {ASAL_OPTIONS.map(a => <option key={a} value={a}>{ASAL_LABELS[a]}</option>)}
-                                    </select>
-                                    {formErrors.asal && <p className="text-[10px] text-red-600 font-bold mt-1">{formErrors.asal}</p>}
+                                    </SelectField>
                                 </div>
                             </div>
 
@@ -766,7 +763,7 @@ function DetailModal({
                                 type="submit"
                                 disabled={isAdding}
                                 className="w-full bg-[#161B85] hover:bg-[#0E1154] disabled:opacity-60 text-white py-3.5
-                                    rounded-xl font-extrabold text-sm transition-all flex items-center justify-center gap-2 shadow-md shadow-[#161B85]/20"
+                                    rounded-xl font-extrabold text-sm transition-all shadow-md shadow-[#161B85]/20 flex items-center justify-center gap-2 mt-2"
                             >
                                 {isAdding ? "Saving..." : <><Plus size={18} /> Add {jumlah} Unit{jumlah > 1 ? "s" : ""}</>}
                             </button>
@@ -828,6 +825,11 @@ function BookCard({ book, onClick }: { book: Buku; onClick: () => void }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function InventoryPage() {
+    const searchParams = useSearchParams(); // Membaca URL Query Parameters
+    
+    // Sinkronisasi kata kunci pencarian dari URL bar secara real-time
+    const searchWord = searchParams.get('search') || '';
+
     const [books, setBooks]                       = useState<Buku[]>([]);
     const [categories, setCategories]             = useState<{ id_kategori: number; nama_kategori: string }[]>([]);
     const [selectedCategory, setSelectedCategory] = useState("all");
@@ -847,12 +849,13 @@ export default function InventoryPage() {
         return 12;
     }, []);
 
-    const fetchData = useCallback(async (page = 1, category = "all", sort = sortBy, ord = order) => {
+    const fetchData = useCallback(async (page = 1, category = "all", sort = sortBy, ord = order, search = searchWord) => {
         setLoading(true);
         const limit = getLimit();
         try {
+            // Integrasikan parameter search ke dalam rute endpoint API
             const res    = await authFetch(
-                `/api/admin/buku?page=${page}&limit=${limit}&id_kategori=${category}&sortBy=${sort}&order=${ord}`
+                `/api/admin/buku?page=${page}&limit=${limit}&id_kategori=${category}&sortBy=${sort}&order=${ord}&search=${encodeURIComponent(search)}`
             );
             const result = await res.json();
             if (result.success) {
@@ -867,18 +870,18 @@ export default function InventoryPage() {
         } finally {
             setLoading(false);
         }
-    }, [getLimit, sortBy, order]);
+    }, [getLimit, sortBy, order, searchWord]);
 
     useEffect(() => {
-        fetchData(meta.page, selectedCategory, sortBy, order);
+        fetchData(meta.page, selectedCategory, sortBy, order, searchWord);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [meta.page, selectedCategory, sortBy, order]);
+    }, [meta.page, selectedCategory, sortBy, order, searchWord]);
 
     useEffect(() => {
-        const handler = () => fetchData(1, selectedCategory, sortBy, order);
+        const handler = () => fetchData(1, selectedCategory, sortBy, order, searchWord);
         window.addEventListener("resize", handler);
         return () => window.removeEventListener("resize", handler);
-    }, [fetchData, selectedCategory, sortBy, order]);
+    }, [fetchData, selectedCategory, sortBy, order, searchWord]);
 
     const handleCategoryChange = (cat: string) => {
         setSelectedCategory(cat);
@@ -898,7 +901,7 @@ export default function InventoryPage() {
 
     const handleItemDeleted = () => {
         setSelectedBook(null); // Close the modal
-        fetchData(1, selectedCategory, sortBy, order); // Refresh list
+        fetchData(1, selectedCategory, sortBy, order, searchWord); // Refresh list
     };
 
     const sortOptions = [
@@ -957,8 +960,7 @@ export default function InventoryPage() {
                         ))}
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                        <SlidersHorizontal size={18} className="text-zinc-500" />
+                    <div className="flex items-start gap-3 shrink-0">
                         <select
                             value={sortBy}
                             onChange={e => handleSort(e.target.value)}
@@ -1070,7 +1072,7 @@ export default function InventoryPage() {
                 <AddBookModal
                     categories={categories}
                     onClose={() => setShowAddModal(false)}
-                    onSuccess={() => fetchData(1, selectedCategory, sortBy, order)}
+                    onSuccess={() => fetchData(1, selectedCategory, sortBy, order, searchWord)}
                 />
             )}
 

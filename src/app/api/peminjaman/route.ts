@@ -21,6 +21,16 @@ export async function POST(request: Request) {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
+    // ─── PENCEGAHAN AKSES ADMIN ─────────────────────────────────────────────
+    // Memastikan akun dengan privilege ADMIN tidak dapat melakukan peminjaman buku
+    if (auth.role === 'ADMIN') {
+        return NextResponse.json({ 
+            success: false, 
+            message: "Action Prohibited: Administrators are not allowed to borrow or reserve books." 
+        }, { status: 403 });
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     try {
         const body = await request.json();
         const { id_buku } = body;

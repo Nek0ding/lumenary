@@ -35,7 +35,6 @@ function ExploreContent() {
     // Data States
     const [books, setBooks] = useState<Buku[]>([]);
     const [loading, setLoading] = useState(true);
-    // ✅ Mengganti isLoggedIn dengan authStatus yang lebih presisi
     const [authStatus, setAuthStatus] = useState<'checking' | 'logged-in' | 'guest'>('checking');
     const [userProfile, setUserProfile] = useState({ name: 'User', npm: '' });
 
@@ -87,16 +86,13 @@ function ExploreContent() {
 
             if (token && userStr) {
                 try {
-                    // Cek token validitas ke Supabase secara langsung
                     const { data: { user }, error } = await supabase.auth.getUser(token);
 
                     if (error || !user) {
-                        // Jika expired/invalid, bersihkan session dan set guest
                         localStorage.removeItem('lumenary_token');
                         localStorage.removeItem('lumenary_user');
                         setAuthStatus('guest');
                     } else {
-                        // Jika valid, set data user
                         const parsedUser = JSON.parse(userStr);
                         setUserProfile({ name: parsedUser.nama || 'User', npm: parsedUser.npm });
                         setAuthStatus('logged-in');
@@ -105,11 +101,9 @@ function ExploreContent() {
                     setAuthStatus('guest');
                 }
             } else {
-                // Tidak ada token
                 setAuthStatus('guest');
             }
 
-            // Lanjut fetch buku berdasarkan URL param
             const queryFromUrl = searchParams.get('q');
             if (queryFromUrl) {
                 setSearchQuery(queryFromUrl);
@@ -219,7 +213,6 @@ function ExploreContent() {
         if (!selectedBook || !agreedToTnC) return;
 
         setIsReserving(true);
-        // Toast loading dimulai di sini
         const toastId = toast.loading('Processing your reservation...');
 
         try {
@@ -235,7 +228,6 @@ function ExploreContent() {
 
             const data = await res.json();
 
-            // Jika sukses
             if (res.ok && data.success) {
                 setIsTnCOpen(false);
                 closeBookDetail();
@@ -244,26 +236,25 @@ function ExploreContent() {
                     judul: selectedBook.judul
                 });
                 fetchBooks(searchQuery);
-                // Update loading toast menjadi success
                 toast.success('Reservation successfully created!', { id: toastId });
             }
             else {
-                // Update loading toast menjadi error dengan pesan dari API
-                if (res.status === 403) {
+                if (data.code === 'INCOMPLETE_PROFILE') {
+                    toast.error(data.message || "Please complete your profile before borrowing.", { id: toastId });
+                    setTimeout(() => {
+                        router.push('/settings');
+                    }, 1500);
+                } else if (res.status === 403) {
                     toast.error(data.message || "You are restricted from borrowing.", { id: toastId });
 
-                    // Arahkan ke halaman Penalty jika user memiliki denda
                     if (data.message.toLowerCase().includes("penalty")) {
                         setTimeout(() => router.push('/dashboard/penalty'), 2000);
                     }
-                } else if (data.code === 'INCOMPLETE_PROFILE') {
-                    router.push('/settings');
                 } else {
                     toast.error(data.message || 'Reservation failed.', { id: toastId });
                 }
             }
         } catch (e) {
-            // Jika error koneksi/jaringan
             toast.error("An error occurred connecting to the server.", { id: toastId });
         } finally {
             setIsReserving(false);
@@ -311,11 +302,28 @@ function ExploreContent() {
 
                     <div className="flex flex-col items-center w-full max-w-[200px] md:max-w-[280px] shrink-0 mx-auto">
                         <img src={selectedBook.cover_buku || "https://placehold.co/300x450?text=No+Cover"} alt={selectedBook.judul} className="w-full aspect-[2/3] object-cover rounded-[16px] shadow-xl" />
-                        <div className="flex gap-1 md:gap-2 mt-4 md:mt-5">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <Star key={star} className="w-5 h-5 md:w-7 md:h-7" fill="#FFD700" color="#FFD700" />
-                            ))}
+                        
+                        {/* IMPLEMENTASI RATING BINTANG DINAMIS */}
+                        <div className="flex items-center gap-1 md:gap-2 mt-4 md:mt-5">
+                            {[1, 2, 3, 4, 5].map((star) => {
+                                const rating = selectedBook.rating_rata ?? 0;
+                                const isFilled = star <= Math.round(rating);
+                                return (
+                                    <Star 
+                                        key={star} 
+                                        className="w-5 h-5 md:w-7 md:h-7 transition-colors duration-200" 
+                                        fill={isFilled ? "#FFD700" : "transparent"} 
+                                        color={isFilled ? "#FFD700" : "#CBD5E1"} 
+                                    />
+                                );
+                            })}
+                            {selectedBook.rating_rata && (
+                                <span className="text-sm md:text-base font-black text-zinc-700 ml-1">
+                                    ({Number(selectedBook.rating_rata).toFixed(1)})
+                                </span>
+                            )}
                         </div>
+                        
                         <p className="text-[14px] md:text-[16px] font-semibold text-[#333] mt-3 md:mt-4 text-center">
                             ISBN : {selectedBook.isbn || 'Unknown'}
                         </p>
@@ -443,7 +451,7 @@ function ExploreContent() {
     const renderSuccessModal = () => {
         if (!reservationSuccess) return null;
         return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4 transition-opacity duration-300">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 transition-opacity duration-300">
                 <div className="bg-white rounded-[32px] p-8 w-full max-w-[450px] shadow-2xl flex flex-col items-center text-center transform transition-transform duration-300 scale-100">
                     <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
                         <CheckCircle2 size={40} />
@@ -480,7 +488,6 @@ function ExploreContent() {
         );
     };
 
-    // --- RENDER LOADER SAAT CHECKING ---
     if (authStatus === 'checking') {
         return (
             <div className="flex h-screen w-full items-center justify-center bg-[#F8F8FF]">
@@ -567,9 +574,6 @@ function ExploreContent() {
 
     const isAnyModalOpen = isModalOpen || isTnCOpen || reservationSuccess !== null;
 
-    // ==========================================
-    // RENDER: JIKA USER SUDAH LOGIN (MENGGUNAKAN EMBEDDED LAYOUT)
-    // ==========================================
     if (authStatus === 'logged-in') {
         return (
             <>
@@ -577,7 +581,6 @@ function ExploreContent() {
                 {renderTnCModal()}
                 {renderSuccessModal()}
 
-                {/* OVERLAY MOBILE SIDEBAR */}
                 {isMobileMenuOpen && (
                     <div
                         className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm"
@@ -586,8 +589,6 @@ function ExploreContent() {
                 )}
 
                 <div className={`flex h-screen w-full bg-[#F8F8FF] font-['Plus_Jakarta_Sans',sans-serif] ${isAnyModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300 overflow-hidden`}>
-
-                    {/* RESPONSIVE SIDEBAR */}
                     <aside className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-zinc-200 flex flex-col justify-between transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                         <div>
                             <div className="flex items-center justify-between px-8 py-8">
@@ -625,7 +626,6 @@ function ExploreContent() {
                             </div>
                         </div>
 
-                        {/* Settings Menu */}
                         <div className="px-6 pb-8">
                             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-4 px-2">Settings</p>
                             <nav className="flex flex-col gap-2">
@@ -639,12 +639,9 @@ function ExploreContent() {
                         </div>
                     </aside>
 
-                    {/* MAIN AREA */}
                     <main className="flex-1 flex flex-col h-screen overflow-y-auto relative">
                         <header className="flex items-center justify-between px-6 md:px-8 py-5 md:py-6 bg-[#F8F8FF] sticky top-0 z-30">
-
                             <div className="flex items-center gap-4 w-full max-w-[600px]">
-                                {/* Hamburger Button */}
                                 <button
                                     className="md:hidden text-zinc-700 hover:text-[#161B85] focus:outline-none p-2 -ml-2 rounded-lg bg-white shadow-sm border border-zinc-200"
                                     onClick={() => setIsMobileMenuOpen(true)}
@@ -689,16 +686,12 @@ function ExploreContent() {
         );
     }
 
-    // ==========================================
-    // RENDER: JIKA USER BELUM LOGIN (PUBLIC LAYOUT) ATAU EXPIRED
-    // ==========================================
     return (
         <>
             {renderModal()}
             {renderTnCModal()}
             {renderSuccessModal()}
 
-            {/* OVERLAY PUBLIC MOBILE MENU */}
             {isMobileMenuOpen && (
                 <div
                     className="fixed inset-0 bg-black/50 z-[55] lg:hidden backdrop-blur-sm"
@@ -707,8 +700,6 @@ function ExploreContent() {
             )}
 
             <div className={`min-h-screen flex flex-col bg-zinc-50 ${isAnyModalOpen ? 'blur-sm pointer-events-none' : ''} transition-all duration-300`}>
-
-                {/* PUBLIC NAVBAR */}
                 <header className="w-full flex items-center justify-between gap-4 px-6 md:px-12 py-5 bg-white border-b border-zinc-200 sticky top-0 z-50 shadow-sm font-['Plus_Jakarta_Sans',sans-serif]">
                     <div className="flex items-center gap-2 md:gap-3 cursor-pointer" onClick={() => router.push('/')}>
                         <img className="w-[40px] h-[40px] md:w-[50px] md:h-[50px] object-contain" src="/logo.png" alt="Logo" />
@@ -743,7 +734,6 @@ function ExploreContent() {
                     </div>
                 </header>
 
-                {/* PUBLIC MOBILE MENU DROPDOWN */}
                 <div className={`lg:hidden fixed top-[80px] left-0 w-full bg-white border-b border-zinc-200 shadow-xl z-[60] transform transition-transform duration-300 origin-top flex flex-col font-['Plus_Jakarta_Sans',sans-serif]
                     ${isMobileMenuOpen ? 'scale-y-100 opacity-100' : 'scale-y-0 opacity-0 pointer-events-none'}`}>
                     <div className="flex flex-col p-4 gap-2">

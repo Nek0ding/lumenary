@@ -15,11 +15,11 @@ async function validateAdmin(request: Request) {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return { error: auth };
     if (auth.role !== "ADMIN") {
-        return { 
+        return {
             error: NextResponse.json(
-                { success: false, message: "Access Denied: This feature is restricted to Admins only." }, 
+                { success: false, message: "Access Denied: This feature is restricted to Admins only." },
                 { status: 403 }
-            ) 
+            )
         };
     }
     return { auth };
@@ -43,30 +43,42 @@ export async function GET(request: Request) {
     if (error) return error;
 
     const { searchParams } = new URL(request.url);
-    const page        = Math.max(1, parseInt(searchParams.get("page")  || "1"));
-    const limit       = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") || "12")));
-    const categoryId  = searchParams.get("id_kategori");
-    const sortBy      = searchParams.get("sortBy") || "created_at";
-    const order       = searchParams.get("order") === "asc" ? "asc" : "desc";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+    const limit = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") || "12")));
+    const categoryId = searchParams.get("id_kategori");
+    const sortBy = searchParams.get("sortBy") || "created_at";
+    const order = searchParams.get("order") === "asc" ? "asc" : "desc";
+    // 1. Ambil parameter pencarian baru
+    const search = searchParams.get("search") || "";
 
     const allowedSort = ["created_at", "judul", "penulis", "tahun_terbit", "stok"];
-    const safeSort    = allowedSort.includes(sortBy) ? sortBy : "created_at";
+    const safeSort = allowedSort.includes(sortBy) ? sortBy : "created_at";
 
+    // 2. Susun objek filter data secara dinamis
     const where: any = {};
+
     if (categoryId && categoryId !== "all") {
         const parsed = parseInt(categoryId);
         if (!isNaN(parsed)) where.id_kategori = parsed;
     }
 
+    if (search.trim() !== "") {
+        where.OR = [
+            { judul: { contains: search, mode: "insensitive" } },
+            { penulis: { contains: search, mode: "insensitive" } },
+            { isbn: { contains: search, mode: "insensitive" } }
+        ];
+    }
+
     const [books, total, categories] = await Promise.all([
         prisma.buku.findMany({
             where,
-            skip:    (page - 1) * limit,
-            take:    limit,
+            skip: (page - 1) * limit,
+            take: limit,
             include: {
                 kategori: { select: { id_kategori: true, nama_kategori: true } },
-                items:    { select: { id_item: true, kode_buku: true, status: true, asal_perolehan: true } },
-                _count:   { select: { ratings: true } },
+                items: { select: { id_item: true, kode_buku: true, status: true, asal_perolehan: true } },
+                _count: { select: { ratings: true } },
             },
             orderBy: { [safeSort]: order },
         }),
@@ -76,9 +88,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
         success: true,
-        data:    books,
+        data: books,
         categories,
-        meta:    { total, page, limit, totalPages: Math.ceil(total / limit) },
+        meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     });
 }
 
@@ -89,23 +101,23 @@ export async function POST(request: Request) {
 
     const { ip_address, user_agent } = getClientInfo(request);
     let formData: FormData;
-    try { formData = await request.formData(); } 
+    try { formData = await request.formData(); }
     catch { return NextResponse.json({ success: false, message: "Invalid form data." }, { status: 400 }); }
 
-    const judul        = String(formData.get("judul") || "").trim();
-    const penulis      = String(formData.get("penulis") || "").trim();
-    const penerbit     = String(formData.get("penerbit") || "").trim();
-    const tahun_str    = String(formData.get("tahun_terbit") || "").trim();
-    const isbn         = String(formData.get("isbn") || "").replace(/[^0-9X\-]/gi, "").trim();
-    const sinopsis     = String(formData.get("sinopsis") || "").trim();
-    const id_kat_str   = String(formData.get("id_kategori") || "").trim();
-    const stok_str     = String(formData.get("stok") || "1").trim();
-    const asal         = String(formData.get("asal_perolehan") || "").trim().toUpperCase();
-    const coverFile    = formData.get("cover") as File | null;
+    const judul = String(formData.get("judul") || "").trim();
+    const penulis = String(formData.get("penulis") || "").trim();
+    const penerbit = String(formData.get("penerbit") || "").trim();
+    const tahun_str = String(formData.get("tahun_terbit") || "").trim();
+    const isbn = String(formData.get("isbn") || "").replace(/[^0-9X\-]/gi, "").trim();
+    const sinopsis = String(formData.get("sinopsis") || "").trim();
+    const id_kat_str = String(formData.get("id_kategori") || "").trim();
+    const stok_str = String(formData.get("stok") || "1").trim();
+    const asal = String(formData.get("asal_perolehan") || "").trim().toUpperCase();
+    const coverFile = formData.get("cover") as File | null;
 
     const errors: string[] = [];
-    if (!judul || judul.length > 200)       errors.push("Book title is required (max 200 characters).");
-    if (!penulis || penulis.length > 100)   errors.push("Author name is required (max 100 characters).");
+    if (!judul || judul.length > 200) errors.push("Book title is required (max 200 characters).");
+    if (!penulis || penulis.length > 100) errors.push("Author name is required (max 100 characters).");
     if (!penerbit || penerbit.length > 100) errors.push("Publisher name is required (max 100 characters).");
 
     const tahun = parseInt(tahun_str);
@@ -133,12 +145,12 @@ export async function POST(request: Request) {
     const existing = await prisma.buku.findUnique({ where: { isbn } });
     if (existing) return NextResponse.json({ success: false, message: `ISBN ${isbn} is already registered.` }, { status: 409 });
 
-    const ext        = coverFile!.name.split(".").pop()?.toLowerCase() || "jpg";
-    const filename   = `covers/${randomUUID()}.${ext}`;
-    const arrayBuf   = await coverFile!.arrayBuffer();
+    const ext = coverFile!.name.split(".").pop()?.toLowerCase() || "jpg";
+    const filename = `covers/${randomUUID()}.${ext}`;
+    const arrayBuf = await coverFile!.arrayBuffer();
 
     const { error: uploadError } = await supabaseAdmin.storage
-        .from("cover_buku") 
+        .from("cover_buku")
         .upload(filename, arrayBuf, { contentType: coverFile!.type, cacheControl: "3600", upsert: false });
 
     if (uploadError) return NextResponse.json({ success: false, message: `Failed to upload cover: ${uploadError.message}` }, { status: 500 });
@@ -156,10 +168,10 @@ export async function POST(request: Request) {
             });
 
             const itemsData = Array.from({ length: stok }, (_, i) => ({
-                id_buku:        newBuku.id_buku,
-                kode_buku:      generateKodeBuku(isbn, i + 1),
+                id_buku: newBuku.id_buku,
+                kode_buku: generateKodeBuku(isbn, i + 1),
                 asal_perolehan: asal,
-                status:         "TERSEDIA" as const,
+                status: "TERSEDIA" as const,
             }));
             await tx.bukuItem.createMany({ data: itemsData });
 
@@ -181,7 +193,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
             success: true,
             message: `Book "${judul}" successfully added with ${stok} units of stock.`,
-            data:    { id_buku: buku.id_buku },
+            data: { id_buku: buku.id_buku },
         }, { status: 201 });
     } catch (err: any) {
         return NextResponse.json({ success: false, message: "An internal server error occurred while saving data.", detail: err.message }, { status: 500 });
@@ -195,18 +207,18 @@ export async function PUT(request: Request) {
     const { ip_address, user_agent } = getClientInfo(request);
 
     let formData: FormData;
-    try { formData = await request.formData(); } 
+    try { formData = await request.formData(); }
     catch { return NextResponse.json({ success: false, message: "Invalid form data." }, { status: 400 }); }
 
-    const id_buku      = formData.get("id_buku") as string;
-    const judul        = formData.get("judul") as string;
-    const penulis      = formData.get("penulis") as string;
-    const penerbit     = formData.get("penerbit") as string;
+    const id_buku = formData.get("id_buku") as string;
+    const judul = formData.get("judul") as string;
+    const penulis = formData.get("penulis") as string;
+    const penerbit = formData.get("penerbit") as string;
     const tahun_terbit = formData.get("tahun_terbit") as string;
-    const isbn         = formData.get("isbn") as string;
-    const id_kategori  = formData.get("id_kategori") as string;
-    const sinopsis     = formData.get("sinopsis") as string;
-    const coverFile    = formData.get("cover") as File | null;
+    const isbn = formData.get("isbn") as string;
+    const id_kategori = formData.get("id_kategori") as string;
+    const sinopsis = formData.get("sinopsis") as string;
+    const coverFile = formData.get("cover") as File | null;
 
     if (!id_buku) return NextResponse.json({ success: false, message: "Invalid or missing Book ID." }, { status: 400 });
 
@@ -225,12 +237,12 @@ export async function PUT(request: Request) {
         if (!coverFile.type.startsWith("image/")) {
             return NextResponse.json({ success: false, message: "Cover file must be an image." }, { status: 400 });
         }
-        const ext        = coverFile.name.split(".").pop()?.toLowerCase() || "jpg";
-        const filename   = `covers/${randomUUID()}.${ext}`;
-        const arrayBuf   = await coverFile.arrayBuffer();
+        const ext = coverFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const filename = `covers/${randomUUID()}.${ext}`;
+        const arrayBuf = await coverFile.arrayBuffer();
 
         const { error: uploadError } = await supabaseAdmin.storage
-            .from("cover_buku") 
+            .from("cover_buku")
             .upload(filename, arrayBuf, { contentType: coverFile.type, cacheControl: "3600", upsert: false });
 
         if (uploadError) return NextResponse.json({ success: false, message: `Failed to upload new cover: ${uploadError.message}` }, { status: 500 });
@@ -303,9 +315,9 @@ export async function DELETE(request: Request) {
         });
 
         if (activeLoans > 0) {
-            return NextResponse.json({ 
-                success: false, 
-                message: `Cannot delete book. There are ${activeLoans} active loan(s) or reservations associated with this book. Please resolve them first.` 
+            return NextResponse.json({
+                success: false,
+                message: `Cannot delete book. There are ${activeLoans} active loan(s) or reservations associated with this book. Please resolve them first.`
             }, { status: 400 }); // Gunakan HTTP 400 (Bad Request) atau 409 (Conflict)
         }
 

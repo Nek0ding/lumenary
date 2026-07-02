@@ -196,9 +196,6 @@ export default function SettingsPage() {
 
                 <div className="flex justify-between items-center mb-8 border-b border-zinc-100 pb-4">
                     <h2 className="text-[20px] md:text-[24px] font-bold text-zinc-400">Personal Profile</h2>
-                    <span className="bg-[#F4F0FF] text-[#A347FF] px-4 py-1.5 rounded-full text-[13px] font-bold">
-                        Edit Mode
-                    </span>
                 </div>
 
                 {message.text && (
