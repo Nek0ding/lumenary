@@ -19,7 +19,12 @@ export async function GET(request: Request) {
             reservedCount,
             dendaResult
         ] = await Promise.all([
-            prisma.peminjaman.count({ where: { id_user: userId } }),
+            prisma.peminjaman.count({ 
+                where: { 
+                    id_user: userId,
+                    status: { in: ['dipinjam', 'terlambat', 'dikembalikan'] } 
+                } 
+            }),
             prisma.favorit.count({ where: { id_user: userId } }),
             prisma.favorit.count({
                 where: {

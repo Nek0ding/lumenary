@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Star, X, Loader2, BookOpen, CheckCircle2, AlertCircle, Heart, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
 
 interface Stats {
     booksHandled: number;
@@ -37,38 +38,6 @@ interface RecommendedItem {
     isbn: string;
     stok: number;
     sinopsis: string;
-}
-
-type ToastType = 'success' | 'error';
-interface Toast {
-    id: number;
-    message: string;
-    type: ToastType;
-}
-
-let toastCounter = 0;
-
-function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: number) => void }) {
-    return (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999999] flex flex-col gap-2 items-center pointer-events-none">
-            {toasts.map((t) => (
-                <div
-                    key={t.id}
-                    className={`flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl text-white text-[14px] font-semibold pointer-events-auto animate-in slide-in-from-bottom-4 duration-300
-                        ${t.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}
-                >
-                    {t.type === 'success'
-                        ? <CheckCircle2 size={18} className="shrink-0" />
-                        : <AlertCircle size={18} className="shrink-0" />
-                    }
-                    {t.message}
-                    <button onClick={() => onRemove(t.id)} className="ml-1 opacity-70 hover:opacity-100">
-                        <X size={14} />
-                    </button>
-                </div>
-            ))}
-        </div>
-    );
 }
 
 function ConfirmCancelDialog({
@@ -150,18 +119,6 @@ export default function DashboardPage() {
     const [cancelTarget, setCancelTarget] = useState<CurrentReadingItem | null>(null);
     const [isCancelling, setIsCancelling] = useState(false);
 
-    const [toasts, setToasts] = useState<Toast[]>([]);
-
-    const showToast = useCallback((message: string, type: ToastType = 'success') => {
-        const id = ++toastCounter;
-        setToasts((prev) => [...prev, { id, message, type }]);
-        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
-    }, []);
-
-    const removeToast = useCallback((id: number) => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, []);
-
     const fetchDashboardData = useCallback(async () => {
         const token = localStorage.getItem('lumenary_token');
         const userStr = localStorage.getItem('lumenary_user');
@@ -172,7 +129,6 @@ export default function DashboardPage() {
             return;
         }
 
-        // Nama hanya untuk display — bukan untuk otorisasi
         if (userStr) {
             try {
                 const user = JSON.parse(userStr);
@@ -183,7 +139,6 @@ export default function DashboardPage() {
         }
 
         try {
-            // npm tidak dikirim — identity murni dari token di server
             const res = await fetch('/api/user/dashboard', {
                 method: 'GET',
                 headers: {
@@ -221,6 +176,7 @@ export default function DashboardPage() {
     const handleConfirmCancel = async () => {
         if (!cancelTarget) return;
         setIsCancelling(true);
+        const toastId = toast.loading('Cancelling your reservation...');
 
         try {
             const token = localStorage.getItem('lumenary_token');
@@ -238,15 +194,15 @@ export default function DashboardPage() {
             if (res.ok && data.success) {
                 setCancelTarget(null);
                 setSelectedLoan(null);
-                showToast('Reservation successfully cancelled.', 'success');
+                toast.success('Reservation successfully cancelled.', { id: toastId });
                 fetchDashboardData();
             } else {
                 setCancelTarget(null);
-                showToast(data.message || 'Failed to cancel reservation.', 'error');
+                toast.error(data.message || 'Failed to cancel reservation.', { id: toastId });
             }
         } catch {
             setCancelTarget(null);
-            showToast('Network error. Please try again.', 'error');
+            toast.error('Network error. Please try again.', { id: toastId });
         } finally {
             setIsCancelling(false);
         }
@@ -333,29 +289,20 @@ export default function DashboardPage() {
                 setIsFavorited(data.isFavorited);
                 fetchDashboardData();
             } else {
-                showToast(data.message || "Failed to update favourite.", 'error');
+                toast.error(data.message || "Failed to update favourite.");
             }
         } catch {
-            showToast("Network error.", 'error');
+            toast.error("Network error.");
         } finally {
             setIsTogglingFavorite(false);
         }
     };
 
-    const renderSynopsis = () => {
-        if (!selectedBook) return null;
-        const text = selectedBook.sinopsis || "Synopsis is not available for this book.";
-        const maxLength = 150;
-        if (text.length <= maxLength) return text;
-        if (isExpanded) {
-            return (<>{text}<span onClick={() => setIsExpanded(false)} style={{ cursor: 'pointer', fontWeight: '800', marginLeft: '6px', color: '#6B21A8' }}>(show less)</span></>);
-        }
-        return (<>{text.substring(0, maxLength)}<span onClick={() => setIsExpanded(true)} style={{ cursor: 'pointer', fontWeight: '800', color: '#111' }}>...read more</span></>);
-    };
-
     const submitReservation = async () => {
         if (!selectedBook || !agreedToTnC) return;
         setIsReserving(true);
+        const toastId = toast.loading('Processing your reservation...');
+
         try {
             const token = localStorage.getItem('lumenary_token');
             const res = await fetch('/api/peminjaman', {
@@ -370,19 +317,36 @@ export default function DashboardPage() {
                 setSelectedBook(null);
                 setReservationSuccess({ kode: data.data.kode_peminjaman, judul: selectedBook.judul });
                 fetchDashboardData();
+                toast.success('Reservation successfully created!', { id: toastId });
             } else {
                 if (data.code === 'INCOMPLETE_PROFILE') {
-                    showToast("Please complete your profile before borrowing.", 'error');
-                    router.push('/settings');
+                    toast.error(data.message || "Please complete your profile before borrowing.", { id: toastId });
+                    setTimeout(() => router.push('/settings'), 1500);
+                } else if (res.status === 403) {
+                    toast.error(data.message || "You are restricted from borrowing.", { id: toastId });
+                    if (data.message && data.message.toLowerCase().includes("penalty")) {
+                        setTimeout(() => router.push('/dashboard/penalty'), 2000);
+                    }
                 } else {
-                    showToast(data.message || 'Reservation failed.', 'error');
+                    toast.error(data.message || 'Reservation failed.', { id: toastId });
                 }
             }
         } catch {
-            showToast("An error occurred connecting to the server.", 'error');
+            toast.error("An error occurred connecting to the server.", { id: toastId });
         } finally {
             setIsReserving(false);
         }
+    };
+
+    const renderSynopsis = () => {
+        if (!selectedBook) return null;
+        const text = selectedBook.sinopsis || "Synopsis is not available for this book.";
+        const maxLength = 150;
+        if (text.length <= maxLength) return text;
+        if (isExpanded) {
+            return (<>{text}<span onClick={() => setIsExpanded(false)} style={{ cursor: 'pointer', fontWeight: '800', marginLeft: '6px', color: '#6B21A8' }}>(show less)</span></>);
+        }
+        return (<>{text.substring(0, maxLength)}<span onClick={() => setIsExpanded(true)} style={{ cursor: 'pointer', fontWeight: '800', color: '#111' }}>...read more</span></>);
     };
 
     const renderTnCModal = () => {
@@ -429,7 +393,7 @@ export default function DashboardPage() {
     const renderSuccessModal = () => {
         if (!reservationSuccess) return null;
         return (
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-[99999] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
                 <div className="bg-white rounded-[32px] p-8 w-full max-w-[450px] shadow-2xl flex flex-col items-center text-center animate-in zoom-in-90 duration-300">
                     <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6">
                         <CheckCircle2 size={40} />
@@ -478,8 +442,6 @@ export default function DashboardPage() {
 
     return (
         <>
-            <ToastContainer toasts={toasts} onRemove={removeToast} />
-
             {cancelTarget && (
                 <ConfirmCancelDialog
                     bookTitle={cancelTarget.title}
@@ -651,7 +613,7 @@ export default function DashboardPage() {
                 {/* Hero Banner */}
                 <div className="w-full h-[313px] rounded-[20px] overflow-hidden relative shadow-sm flex flex-col justify-center px-5 md:px-10 mt-6">
                     <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('/background-dashboard.jpg')` }} />
-                    <div className="absolute inset-0 bg-gradient-to-r from-[#161B85]/90 to-[#492073]/60 mix-blend-multiply" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#101464CC]/95 to-[#10146433]/5" />
                     <div className="relative z-10 text-white max-w-[665px]">
                         <h1 className="text-[24px] md:text-[36px] font-bold leading-tight mb-3">
                             Welcome Back, {userName}! Ready to<br />Discover Your Next Reference?
@@ -661,9 +623,17 @@ export default function DashboardPage() {
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-2xl p-5 shadow-[0px_2px_4px_rgba(0,0,0,0.25)] border border-zinc-100">
-                        <p className="text-[16px] text-zinc-500 font-medium mb-1">Books Handled</p>
-                        <p className="text-[20px] font-bold text-black">{stats.booksHandled} Books</p>
+                    <div className="bg-white rounded-2xl p-5 shadow-[0px_2px_4px_rgba(0,0,0,0.25)] border border-zinc-100 flex justify-between items-center">
+                        <div>
+                            <p className="text-[16px] text-zinc-500 font-medium mb-1">Books Handled</p>
+                            <p className="text-[20px] font-bold text-black">{stats.booksHandled} Books</p>
+                            <p className="text-[12px] text-black font-medium mt-1">
+                                {currentReading.filter(b => b.status === 'dipinjam').length} actively reading
+                            </p>
+                        </div>
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 0C3.72 0 3.48 0.04 3.24 0.12C1.68 0.44 0.44 1.68 0.12 3.24C0 3.48 0 3.72 0 4V26C0 29.32 2.68 32 6 32H28V28H6C4.88 28 4 27.12 4 26C4 24.88 4.88 24 6 24H28V2C28 0.88 27.12 0 26 0H24V12L20 8L16 12V0H4Z" fill="black" />
+                        </svg>
                     </div>
                     <div className="bg-white rounded-2xl p-5 shadow-[0px_2px_4px_rgba(0,0,0,0.25)] border border-zinc-100 flex justify-between items-center">
                         <div>

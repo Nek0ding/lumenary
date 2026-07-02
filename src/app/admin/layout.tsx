@@ -16,7 +16,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     const [isAuthorized, setIsAuthorized] = useState(false);
     const [userProfile, setUserProfile] = useState({ name: 'Loading...', npm: '' });
-    
+
     const [searchQuery, setSearchQuery] = useState('');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -28,7 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             router.replace('/login');
         } else {
             const user = JSON.parse(userStr);
-            
+
             if (user.role !== 'ADMIN') {
                 router.replace('/dashboard');
                 return;
@@ -51,8 +51,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (searchQuery.trim() !== '') {
-            router.push(`/admin/inventory?q=${encodeURIComponent(searchQuery)}`);
-            setSearchQuery(''); 
+            // Arahkan ke rute inventory dengan parameter URL "?search="
+            router.push(`/admin/inventory?search=${encodeURIComponent(searchQuery)}`);
+            setSearchQuery(''); // Bersihkan kolom setelah submit
         }
     };
 
@@ -81,7 +82,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* ... Sisa kode layout ke bawah tetap sama persis ... */}
             {/* ================= OVERLAY UNTUK MOBILE ================= */}
             {isMobileMenuOpen && (
-                <div 
+                <div
                     className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm transition-opacity"
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
@@ -109,9 +110,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             {adminNavLinks.map((link) => {
                                 const isActive = pathname.startsWith(link.href);
                                 return (
-                                    <Link 
-                                        key={link.name} 
-                                        href={link.href} 
+                                    <Link
+                                        key={link.name}
+                                        href={link.href}
                                         onClick={() => setIsMobileMenuOpen(false)}
                                         className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-[16px] font-medium transition-colors 
                                             ${isActive ? 'bg-red-50 text-[#7A35BF] font-bold' : 'text-zinc-700 hover:bg-zinc-50'}`}
@@ -136,8 +137,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* ================= MAIN CONTENT AREA ================= */}
             <main className="flex-1 flex flex-col h-screen overflow-y-auto">
                 <header className="flex items-center justify-between px-6 md:px-8 py-5 md:py-6 bg-[#F8F8FF] sticky top-0 z-30">
-                    <div className="flex items-center gap-4 w-full max-w-[600px]">
-                        <button 
+                    <div className="flex items-center gap-4 w-full max-w-[800px]">
+                        <button
                             className="md:hidden text-zinc-700 hover:text-[#161B85] focus:outline-none p-2 -ml-2 rounded-lg bg-white shadow-sm border border-zinc-200"
                             onClick={() => setIsMobileMenuOpen(true)}
                         >
@@ -152,7 +153,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 type="text"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search inventory or students..."
+                                placeholder="Search inventory..."
                                 className="w-full h-[46px] pl-12 pr-4 text-black bg-white rounded-full text-[14px] border border-zinc-200 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400 shadow-sm transition-all"
                             />
                         </form>
