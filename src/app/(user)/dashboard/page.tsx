@@ -671,7 +671,7 @@ export default function DashboardPage() {
                 <div className="flex flex-col gap-4">
                     <h2 className="text-[32px] font-bold text-black">Recommended For You</h2>
                     {recommended.length === 0 ? (
-                        <p className="text-zinc-500 text-[14px]">Belum ada rekomendasi buku tersedia.</p>
+                        <p className="text-zinc-500 text-[14px]">No book recommendations are available yet.</p>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                             {recommended.map((book) => (
@@ -695,7 +695,7 @@ export default function DashboardPage() {
                     {currentReading.length === 0 ? (
                         <div className="w-full bg-white rounded-[24px] p-12 text-center text-zinc-500 font-medium shadow-sm border border-zinc-100 flex flex-col items-center gap-4 mb-10">
                             <BookOpen size={48} className="text-zinc-300" />
-                            <p className="text-[16px]">Anda tidak sedang meminjam buku saat ini.</p>
+                            <p className="text-[16px]">You are not currently borrowing any books.</p>
                         </div>
                     ) : (
                         <div className="flex flex-col gap-4 mb-10">
